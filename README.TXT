@@ -12,6 +12,6 @@ internal/
 
 
 
-// запуск (Для Ромы)
+// запуск (Для Ромы)(качаешь файлы и устанавливаешь все в 1 папку под названием hotel-matcher)
 go mod tidy
 go run cmd/server/main.go
