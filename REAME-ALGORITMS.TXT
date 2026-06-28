@@ -1,0 +1,57 @@
+# Jaro-Winkler (лучший для названий)
+curl -X POST http://localhost:8080/api/upload -F "file=@data/hotels.csv" -F "algorithm=jaro-winkler"
+
+# Jaro (для городов)
+curl -X POST http://localhost:8080/api/upload -F "file=@data/hotels.csv" -F "algorithm=jaro"
+
+# Levenshtein (для адресов)
+curl -X POST http://localhost:8080/api/upload -F "file=@data/hotels.csv" -F "algorithm=levenshtein"
+
+# Damerau-Levenshtein (для сложных опечаток)
+curl -X POST http://localhost:8080/api/upload -F "file=@data/hotels.csv" -F "algorithm=damerau-levenshtein"
+
+# Cosine (для длинных текстов)
+curl -X POST http://localhost:8080/api/upload -F "file=@data/hotels.csv" -F "algorithm=cosine"
+
+# Soundex (фонетический)
+curl -X POST http://localhost:8080/api/upload -F "file=@data/hotels.csv" -F "algorithm=soundex"
+
+# N-gram
+curl -X POST http://localhost:8080/api/upload -F "file=@data/hotels.csv" -F "algorithm=ngram"
+
+# LCS
+curl -X POST http://localhost:8080/api/upload -F "file=@data/hotels.csv" -F "algorithm=lcs"
+
+// {
+  "hotels": [
+    {
+      "id": "1",
+      "source": "expedia",
+      "name": "Grand Hotel",
+      "address": "123 Main St",
+      "city": "New York",
+      "country": "USA",
+      "latitude": 40.7128,
+      "longitude": -74.0060
+    },
+    {
+      "id": "2",
+      "source": "booking",
+      "name": "Grand Hotel NYC",
+      "address": "123 Main Street",
+      "city": "New York",
+      "country": "USA",
+      "latitude": 40.7129,
+      "longitude": -74.0061
+    }
+  ],
+  "config": {
+    "algorithm": "jaro-winkler",
+    "threshold": 0.75,
+    "nameWeight": 0.35,
+    "addressWeight": 0.25,
+    "geoWeight": 0.30,
+    "locationWeight": 0.10
+  }
+}
+обе проверки можно произвести и они будут работть

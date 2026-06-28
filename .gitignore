@@ -1,0 +1,29 @@
+# Создаём файл .gitignore
+echo "# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+data/*.csv
+!data/.gitkeep
+
+# Logs
+*.log
+" > .gitignore
