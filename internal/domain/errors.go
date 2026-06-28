@@ -8,4 +8,5 @@ var (
 	ErrNoHotels      = errors.New("Отели не указаны для сопоставления")
 	ErrInvalidConfig = errors.New("Неверная конфигурация")
 	ErrNotFound      = errors.New("Отель не найден")
+	ErrGroupNotFound = errors.New("Группа не найдена")
 )
