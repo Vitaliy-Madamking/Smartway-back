@@ -2,14 +2,17 @@ package domain
 
 // Hotel — бизнес-сущность отеля
 type Hotel struct {
-	ID        string
-	Source    string
-	Name      string
-	Address   string
-	City      string
-	Country   string
-	Latitude  float64
-	Longitude float64
+	ID              string  `json:"id"`
+	SupplierName    string  `json:"supplier_name"`
+	SupplierHotelID string  `json:"supplier_hotel_id"`
+	Name            string  `json:"name"`
+	Address         string  `json:"address"`
+	City            string  `json:"city"`
+	Country         string  `json:"country"`
+	CountryCode     string  `json:"country_code"`
+	Latitude        float64 `json:"latitude"`
+	Longitude       float64 `json:"longitude"`
+	Stars           int     `json:"stars"`
 }
 
 // Validate проверяет обязательные поля
