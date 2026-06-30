@@ -394,3 +394,58 @@ func CosineSimilarity(a, b string) float64 {
 	// Косинусное расстояние = dotProduct / (|A| * |B|)
 	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
 }
+
+// 9. CompareWithCustomAlgorithm - универсальная функция сравнения
+// Поддерживает: "jaro-winkler", "jaro", "levenshtein", 
+//               "damerau-levenshtein", "soundex", "ngram", "cosine", "lcs"
+// Используется для выбора алгоритма сравнения на основе строкового параметра
+// Возвращает оценку схожести в диапазоне 0.0 - 1.0
+func CompareWithCustomAlgorithm(a, b, algorithm string) float64 {
+	a = NormalizeString(a)
+	b = NormalizeString(b)
+
+	if a == "" && b == "" {
+		return 1.0
+	}
+	if a == "" || b == "" {
+		return 0.0
+	}
+	if a == b {
+		return 1.0
+	}
+
+	switch algorithm {
+	case "lcs":
+		// Наибольшая общая подпоследовательность
+		lcsLen := LCS(a, b)
+		maxLen := max2(len(a), len(b))
+		if maxLen == 0 {
+			return 1.0
+		}
+		return float64(lcsLen) / float64(maxLen)
+	case "levenshtein":
+		// Расстояние Левенштейна
+		return LevenshteinSimilarity(a, b)
+	case "damerau-levenshtein":
+		// Расстояние Дамерау-Левенштейна (с учётом транспозиций)
+		return DamerauLevenshteinSimilarity(a, b)
+	case "jaro":
+		// Алгоритм Jaro
+		return JaroSimilarity(a, b)
+	case "jaro-winkler":
+		// Алгоритм Jaro-Winkler (с префиксным бонусом)
+		return JaroWinklerSimilarityCustom(a, b)
+	case "soundex":
+		// Фонетический алгоритм Soundex
+		return SoundexSimilarity(a, b)
+	case "ngram":
+		// N-грамм (сравнение по фрагментам)
+		return NGramSimilarity(a, b, 2)
+	case "cosine":
+		// Косинусное расстояние
+		return CosineSimilarity(a, b)
+	default:
+		// По умолчанию Jaro-Winkler
+		return JaroWinklerSimilarityCustom(a, b)
+	}
+}
