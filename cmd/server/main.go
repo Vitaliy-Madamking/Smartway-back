@@ -25,7 +25,6 @@ func main() {
 	handler := deliveryhttp.NewHandler(matcher, log)
 
 	mux := stdhttp.NewServeMux()
-	mux.HandleFunc("/api/match", handler.MatchHandler)
 	mux.HandleFunc("/api/upload", handler.UploadHandler)
 	mux.HandleFunc("/health", func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		w.Header().Set("Content-Type", "application/json")
