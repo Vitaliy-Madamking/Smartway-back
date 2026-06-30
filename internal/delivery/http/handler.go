@@ -22,6 +22,27 @@ func NewHandler(matcher usecase.Matcher, log logger.Logger) *Handler {
 	return &Handler{matcher: matcher, logger: log}
 }
 
+// writeJSON — хелпер для отправки JSON-ответа
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		// Если не удалось закодировать, логируем ошибку
+		_ = err
+	}
+}
+
+// writeError — хелпер для отправки JSON-ошибки
+func writeError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(ErrorResponse{
+		Error:   http.StatusText(status),
+		Message: message,
+		Code:    status,
+	})
+}
+
 // MatchHandler — обрабатывает POST /api/match (JSON-запрос)
 // 1. Проверяет метод
 // 2. Декодирует JSON в MatchRequest
@@ -32,7 +53,7 @@ func NewHandler(matcher usecase.Matcher, log logger.Logger) *Handler {
 func (h *Handler) MatchHandler(w http.ResponseWriter, r *http.Request) {
 	// Проверка метода: только POST
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
@@ -40,7 +61,7 @@ func (h *Handler) MatchHandler(w http.ResponseWriter, r *http.Request) {
 	var req MatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.logger.Error("failed to decode request", "error", err)
-		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid JSON format")
 		return
 	}
 
@@ -51,18 +72,15 @@ func (h *Handler) MatchHandler(w http.ResponseWriter, r *http.Request) {
 	result, err := h.matcher.Match(r.Context(), hotels, cfg)
 	if err != nil {
 		h.logger.Error("matching failed", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// Преобразуем результат в DTO для ответа
+	// Преобразуем результат в DTO для ответа с метриками
 	response := ToDTO(result)
 
 	// Отправляем JSON-ответ
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.logger.Error("failed to encode response", "error", err)
-	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 // UploadHandler — обрабатывает POST /api/upload (CSV-загрузка)
@@ -77,15 +95,14 @@ func (h *Handler) MatchHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UploadHandler(w http.ResponseWriter, r *http.Request) {
 	// Проверка метода: только POST
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	// Парсим multipart/form-data (ограничение 10 MB)
-	// 10 << 20 = 10 * 1024 * 1024 = 10 MB
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		h.logger.Error("failed to parse multipart form", "error", err)
-		http.Error(w, "failed to parse form", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "failed to parse form")
 		return
 	}
 
@@ -93,14 +110,14 @@ func (h *Handler) UploadHandler(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		h.logger.Error("failed to get file", "error", err)
-		http.Error(w, "file not provided", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "file not provided")
 		return
 	}
-	defer file.Close() // обязательно закрываем файл
+	defer file.Close()
 
 	// Проверка расширения: только .csv
 	if !strings.HasSuffix(header.Filename, ".csv") && !strings.HasSuffix(header.Filename, ".CSV") {
-		http.Error(w, "only CSV files are allowed", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "only CSV files are allowed")
 		return
 	}
 
@@ -108,13 +125,13 @@ func (h *Handler) UploadHandler(w http.ResponseWriter, r *http.Request) {
 	hotels, err := parseCSV(file)
 	if err != nil {
 		h.logger.Error("failed to parse CSV", "error", err)
-		http.Error(w, "invalid CSV format", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid CSV format: "+err.Error())
 		return
 	}
 
 	// Проверка: есть ли отели в CSV
 	if len(hotels) == 0 {
-		http.Error(w, "no hotels found in CSV", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "no hotels found in CSV")
 		return
 	}
 
@@ -140,16 +157,13 @@ func (h *Handler) UploadHandler(w http.ResponseWriter, r *http.Request) {
 	result, err := h.matcher.Match(r.Context(), hotels, cfg)
 	if err != nil {
 		h.logger.Error("matching failed", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// Преобразуем результат в DTO для ответа
+	// Преобразуем результат в DTO для ответа с метриками
 	response := ToDTO(result)
 
 	// Отправляем JSON-ответ
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.logger.Error("failed to encode response", "error", err)
-	}
+	writeJSON(w, http.StatusOK, response)
 }
