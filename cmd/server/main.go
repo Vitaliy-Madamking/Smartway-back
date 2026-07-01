@@ -1,10 +1,3 @@
-// ============================================================
-// cmd/server/main.go - ТОЧКА ВХОДА В СЕРВИС
-// ============================================================
-// Назначение: инициализация всех компонентов и запуск HTTP-сервера
-// Архитектура: Clean Architecture с Dependency Injection
-// ============================================================
-
 package main
 
 import (
@@ -16,7 +9,7 @@ import (
 	"syscall"          // Системные вызовы (SIGINT, SIGTERM)
 	"time"             // Таймауты и задержки
 
-	deliveryhttp "hotel-matcher/internal/delivery/http" // HTTP-слой (алиас)
+	deliveryhttp "hotel-matcher/internal/delivery/http" // HTTP-слой (алиас/альтернатива)
 	"hotel-matcher/internal/infrastructure/config"      // Конфигурация
 	"hotel-matcher/internal/infrastructure/logger"      // Логгер
 	"hotel-matcher/internal/repository/memory"          // In-memory хранилище
