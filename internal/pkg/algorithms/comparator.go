@@ -22,7 +22,8 @@ import (
 
 // CompareWithAlgorithm - универсальная функция сравнения с выбором алгоритма
 // Поддерживает: "jaro-winkler", "jaro", "levenshtein", "cosine",
-//               "damerau-levenshtein", "lcs", "soundex", "ngram"
+//
+//	"damerau-levenshtein", "lcs", "soundex", "ngram"
 func CompareWithAlgorithm(a, b, algorithm string) float64 {
 	a = NormalizeString(a)
 	b = NormalizeString(b)
@@ -40,7 +41,6 @@ func CompareWithAlgorithm(a, b, algorithm string) float64 {
 	switch algorithm {
 
 	// БИБЛИОТЕЧНЫЕ АЛГОРИТМЫ (из go-edlib)
-	
 
 	case "jaro-winkler":
 		// Jaro-Winkler - ЛУЧШИЙ для названий отелей
@@ -67,7 +67,7 @@ func CompareWithAlgorithm(a, b, algorithm string) float64 {
 		return float64(sim)
 
 	// КАСТОМНЫЕ АЛГОРИТМЫ (собственные реализации)
-	
+
 	case "damerau-levenshtein":
 		// Damerau-Levenshtein - для сложных опечаток
 		// Преимущество: учитывает перестановки соседних символов
@@ -107,7 +107,6 @@ func CompareWithAlgorithm(a, b, algorithm string) float64 {
 	}
 }
 
-
 // СПЕЦИАЛИЗИРОВАННЫЕ ФУНКЦИИ ДЛЯ КОНКРЕТНЫХ ПОЛЕЙ
 
 // CompareNames - сравнение названий отелей (по умолчанию Jaro-Winkler)
@@ -130,6 +129,9 @@ func CompareNamesWithAlgorithm(a, b, algorithm string) float64 {
 	}
 	if strings.Contains(a, b) || strings.Contains(b, a) {
 		return 0.95
+	}
+	if algorithm == "default" || algorithm == "" {
+		algorithm = "jaro-winkler"
 	}
 	return CompareWithAlgorithm(a, b, algorithm)
 }
@@ -157,7 +159,7 @@ func CompareAddressesWithAlgorithm(a, b, algorithm string) float64 {
 	}
 	// Для адресов лучше всего Levenshtein или Damerau-Levenshtein
 	if algorithm == "default" || algorithm == "" {
-		algorithm = "levenshtein"
+		algorithm = "jaro-winkler"
 	}
 	return CompareWithAlgorithm(a, b, algorithm)
 }
@@ -186,7 +188,7 @@ func CompareLocationWithAlgorithm(city1, country1, city2, country2, algorithm st
 	}
 	// Для городов лучше всего Jaro или Jaro-Winkler
 	if algorithm == "default" || algorithm == "" {
-		algorithm = "jaro"
+		algorithm = "jaro-winkler"
 	}
 	return CompareWithAlgorithm(c1, c2, algorithm)
 }
