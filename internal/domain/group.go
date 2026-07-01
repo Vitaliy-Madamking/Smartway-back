@@ -4,6 +4,7 @@ package domain
 type Group struct {
 	ID              string
 	ConfidenceScore float64
+	MatchScore      float64
 	Hotels          []Hotel
 	MatchReasons    []string
 }

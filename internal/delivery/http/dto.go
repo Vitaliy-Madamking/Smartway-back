@@ -268,7 +268,7 @@ func ToDTO(result *domain.Result) MatchResponse {
 			GroupID:         g.ID,
 			PrimaryName:     primaryName,
 			ConfidenceScore: g.ConfidenceScore,
-			MatchScore:      g.ConfidenceScore,
+			MatchScore:      g.MatchScore,
 			ProvidersCount:  len(providersInGroup),
 			HotelsCount:     len(g.Hotels),
 			MatchReasons:    matchReasons,

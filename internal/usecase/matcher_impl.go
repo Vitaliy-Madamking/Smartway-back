@@ -71,11 +71,21 @@ func (m *matcherImpl) Match(ctx context.Context, hotels []domain.Hotel, cfg doma
 		Groups:    make([]domain.Group, 0), // Инициализируем слайс для групп
 		Unmatched: make([]domain.Hotel, 0), // Инициализируем слайс для несоответствующих отелей
 	}
+
 	for groupID, hotelsInGroup := range groups { // Проходим по всем найденным группам
-		score, reasons := calculateGroupConfidence(hotelsInGroup, cfg) // Вычисляем степень уверенности для группы (средняя оценка)
-		result.Groups = append(result.Groups, domain.Group{            // Добавляем группу в результат
-			ID:              groupID,       // Уникальный ID группы
-			ConfidenceScore: score,         // Степень уверенности
+		providersInGroup := make(map[string]bool)
+		for _, h := range hotelsInGroup {
+			if h.Source != "" {
+				providersInGroup[h.Source] = true
+			}
+		}
+		matchScore, reasons := calculateGroupConfidence(hotelsInGroup, cfg)
+		score := calculateConfidenceScore(matchScore, len(hotelsInGroup), len(providersInGroup))
+
+		result.Groups = append(result.Groups, domain.Group{ // Добавляем группу в результат
+			ID:              groupID, // Уникальный ID группы
+			ConfidenceScore: score,   // Степень уверенности
+			MatchScore:      matchScore,
 			Hotels:          hotelsInGroup, // Список отелей в группе
 			MatchReasons:    reasons,       // Причины совпадения
 		})
@@ -258,4 +268,41 @@ func findMatchReasons(nameScore, addrScore, geoScore, locScore float64) []string
 	}
 
 	return reasons
+}
+
+// calculateConfidenceScore — итоговая уверенность алгоритма.
+// В отличие от MatchScore (чистое сходство строк/координат), здесь учитывается:
+//   - sizeFactor: чем больше отелей в группе подтвердили совпадение, тем выше уверенность
+//   - providerFactor: чем больше РАЗНЫХ поставщиков подтвердили этот отель, тем выше уверенность
+//     (если 5 записей, но все от одного поставщика — это слабее, чем 3 записи от 3 разных)
+//
+// Для одиночных групп (отель не нашёл пару) уверенность снижена, т.к. это
+// не подтверждённый дубликат, а скорее "нет повторов" — что само по себе не ошибка,
+// но и не "уверенное совпадение".
+func calculateConfidenceScore(matchScore float64, hotelsCount, providersCount int) float64 {
+	if hotelsCount <= 1 {
+		return 1.0
+	}
+
+	sizeFactor := 0.5 + float64(hotelsCount-1)*0.15
+	if sizeFactor > 1.0 {
+		sizeFactor = 1.0
+	}
+
+	providerFactor := 0.5 + float64(providersCount-1)*0.2
+	if providerFactor > 1.0 {
+		providerFactor = 1.0
+	}
+	if providerFactor < 0.5 {
+		providerFactor = 0.5
+	}
+
+	confidence := matchScore * (0.5 + 0.25*sizeFactor + 0.25*providerFactor)
+	if confidence > 1.0 {
+		confidence = 1.0
+	}
+	if confidence < 0 {
+		confidence = 0
+	}
+	return confidence
 }
