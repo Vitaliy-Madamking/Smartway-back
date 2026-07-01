@@ -59,25 +59,21 @@ type MatchResponse struct {
 
 // PaginationDTO — информация о пагинации
 type PaginationDTO struct {
-	Page       int `json:"page"`        // текущая страница
-	Limit      int `json:"limit"`       // элементов на странице
-	TotalItems int `json:"totalItems"`  // всего элементов
-	TotalPages int `json:"totalPages"`  // всего страниц
-	HasNext    bool `json:"hasNext"`    // есть ли следующая страница
-	HasPrev    bool `json:"hasPrev"`    // есть ли предыдущая страница
+	Page       int  `json:"page"`        // текущая страница
+	Limit      int  `json:"limit"`       // элементов на странице
+	TotalItems int  `json:"totalItems"`  // всего элементов
+	TotalPages int  `json:"totalPages"`  // всего страниц
+	HasNext    bool `json:"hasNext"`     // есть ли следующая страница
+	HasPrev    bool `json:"hasPrev"`     // есть ли предыдущая страница
 }
 
-// MetricsDTO — метрики результата матчинга
+// MetricsDTO — метрики результата матчинга (формат для фронтенда)
 type MetricsDTO struct {
-	TotalHotels       int     `json:"totalHotels"`       // всего отелей
-	TotalGroups       int     `json:"totalGroups"`       // всего групп (включая одиночные)
-	UniqueHotels      int     `json:"uniqueHotels"`      // уникальных отелей
-	GroupsWithMatches int     `json:"groupsWithMatches"` // группы с >=2 отелями
-	SingleHotels      int     `json:"singleHotels"`      // одиночные отели
-	ProvidersCount    int     `json:"providersCount"`    // количество поставщиков
-	AvgConfidence     float64 `json:"avgConfidence"`     // средняя уверенность
-	MinConfidence     float64 `json:"minConfidence"`     // минимальная уверенность
-	MaxConfidence     float64 `json:"maxConfidence"`     // максимальная уверенность
+	TotalHotels        int     `json:"totalHotels"`        // всего отелей
+	TotalGroups        int     `json:"totalGroups"`        // всего групп (включая одиночные)
+	TotalDuplicates    int     `json:"totalDuplicates"`    // всего дубликатов (отели в группах с >=2)
+	TotalProviders     int     `json:"totalProviders"`     // количество поставщиков
+	AverageConfidence  float64 `json:"averageConfidence"`  // средняя уверенность
 }
 
 // GroupDTO — группа совпавших отелей в ответе
@@ -178,39 +174,40 @@ func ToDTO(result *domain.Result) MatchResponse {
 		})
 	}
 
-	// Считаем уверенность
+	// Считаем уверенность и дубликаты
 	var totalConfidence float64
 	var minConfidence float64 = 1.0
 	var maxConfidence float64
 	confidenceCount := len(result.Groups)
+	totalDuplicates := 0
 
 	for _, g := range result.Groups {
 		totalConfidence += g.ConfidenceScore
+		confidenceCount++
 		if g.ConfidenceScore < minConfidence {
 			minConfidence = g.ConfidenceScore
 		}
 		if g.ConfidenceScore > maxConfidence {
 			maxConfidence = g.ConfidenceScore
 		}
+
+		// Если в группе >=2 отеля — это дубликаты
+		if len(g.Hotels) >= 2 {
+			totalDuplicates += len(g.Hotels)
+		}
 	}
 
-	// Формируем метрики
+	// Формируем метрики для фронтенда
 	metrics := MetricsDTO{
-		TotalHotels:       len(allHotels),
-		TotalGroups:       len(allGroups),
-		UniqueHotels:      len(allGroups),
-		GroupsWithMatches: len(result.Groups),
-		SingleHotels:      len(result.Unmatched),
-		ProvidersCount:    len(providers),
-		AvgConfidence:     0,
-		MinConfidence:     0,
-		MaxConfidence:     0,
+		TotalHotels:        len(allHotels),
+		TotalGroups:        len(allGroups),
+		TotalDuplicates:    totalDuplicates,
+		TotalProviders:     len(providers),
+		AverageConfidence:  0,
 	}
 
 	if confidenceCount > 0 {
-		metrics.AvgConfidence = totalConfidence / float64(confidenceCount)
-		metrics.MinConfidence = minConfidence
-		metrics.MaxConfidence = maxConfidence
+		metrics.AverageConfidence = totalConfidence / float64(confidenceCount)
 	}
 
 	// Преобразуем группы в DTO
@@ -288,7 +285,7 @@ func ToDTO(result *domain.Result) MatchResponse {
 func ToDTOWithPagination(result *domain.Result, req MatchRequest) MatchResponse {
 	// Получаем все группы через стандартный ToDTO
 	fullResponse := ToDTO(result)
-	
+
 	// Если групп нет, возвращаем пустой ответ
 	if len(fullResponse.Groups) == 0 {
 		return MatchResponse{
