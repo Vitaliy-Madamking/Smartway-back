@@ -1,6 +1,9 @@
 package http
 
-import "hotel-matcher/internal/domain"
+import (
+	"hotel-matcher/internal/domain"
+	"strings"
+)
 
 // ErrorResponse — JSON-ответ при ошибке
 type ErrorResponse struct {
@@ -12,8 +15,13 @@ type ErrorResponse struct {
 // MatchRequest — структура входящего запроса к эндпоинту /api/match
 // Содержит список отелей и опциональные настройки матчинга
 type MatchRequest struct {
-	Hotels []HotelDTO `json:"hotels"`              // список отелей от поставщиков
-	Config ConfigDTO  `json:"config,omitempty"`    // настройки алгоритма (необязательно)
+	Hotels   []HotelDTO `json:"hotels"`              // список отелей от поставщиков
+	Config   ConfigDTO  `json:"config,omitempty"`    // настройки алгоритма (необязательно)
+	Page     int        `json:"page,omitempty"`      // номер страницы (по умолчанию 1)
+	Limit    int        `json:"limit,omitempty"`     // количество групп на странице (по умолчанию 50)
+	Search   string     `json:"search,omitempty"`    // поиск по названию группы
+	SortBy   string     `json:"sortBy,omitempty"`    // поле для сортировки: "name", "confidence", "hotelsCount"
+	SortDir  string     `json:"sortDir,omitempty"`   // направление сортировки: "asc" или "desc" (по умолчанию "desc")
 }
 
 // HotelDTO — DTO для отеля в JSON-запросах и ответах
@@ -43,9 +51,20 @@ type ConfigDTO struct {
 // MatchResponse — структура ответа сервера
 // Содержит найденные группы, метрики и отели без совпадений
 type MatchResponse struct {
-	Groups    []GroupDTO `json:"groups"`    // группы совпавших отелей
-	Unmatched []HotelDTO `json:"unmatched"` // отели без совпадений (всегда пустой)
-	Metrics   MetricsDTO `json:"metrics"`   // метрики результата
+	Groups     []GroupDTO     `json:"groups"`     // группы совпавших отелей
+	Unmatched  []HotelDTO     `json:"unmatched"`  // отели без совпадений (всегда пустой)
+	Metrics    MetricsDTO     `json:"metrics"`    // метрики результата
+	Pagination PaginationDTO  `json:"pagination"` // информация о пагинации
+}
+
+// PaginationDTO — информация о пагинации
+type PaginationDTO struct {
+	Page       int `json:"page"`        // текущая страница
+	Limit      int `json:"limit"`       // элементов на странице
+	TotalItems int `json:"totalItems"`  // всего элементов
+	TotalPages int `json:"totalPages"`  // всего страниц
+	HasNext    bool `json:"hasNext"`    // есть ли следующая страница
+	HasPrev    bool `json:"hasPrev"`    // есть ли предыдущая страница
 }
 
 // MetricsDTO — метрики результата матчинга
@@ -127,6 +146,7 @@ func ToDTO(result *domain.Result) MatchResponse {
 			Groups:    []GroupDTO{},
 			Unmatched: []HotelDTO{},
 			Metrics:   MetricsDTO{},
+			Pagination: PaginationDTO{},
 		}
 	}
 
@@ -252,5 +272,157 @@ func ToDTO(result *domain.Result) MatchResponse {
 		Groups:    groupsDTO,
 		Unmatched: []HotelDTO{}, // всегда пустой, все отели теперь в группах
 		Metrics:   metrics,
+		Pagination: PaginationDTO{
+			Page:       1,
+			Limit:      len(groupsDTO),
+			TotalItems: len(groupsDTO),
+			TotalPages: 1,
+			HasNext:    false,
+			HasPrev:    false,
+		},
 	}
+}
+
+// ToDTOWithPagination — преобразует доменный результат в ответ с пагинацией
+// Конвертирует domain.Result → MatchResponse с учетом пагинации, поиска и сортировки
+func ToDTOWithPagination(result *domain.Result, req MatchRequest) MatchResponse {
+	// Получаем все группы через стандартный ToDTO
+	fullResponse := ToDTO(result)
+	
+	// Если групп нет, возвращаем пустой ответ
+	if len(fullResponse.Groups) == 0 {
+		return MatchResponse{
+			Groups:    []GroupDTO{},
+			Unmatched: []HotelDTO{},
+			Metrics:   fullResponse.Metrics,
+			Pagination: PaginationDTO{
+				Page:       req.Page,
+				Limit:      req.Limit,
+				TotalItems: 0,
+				TotalPages: 0,
+				HasNext:    false,
+				HasPrev:    false,
+			},
+		}
+	}
+
+	// Устанавливаем значения по умолчанию
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.Limit < 1 {
+		req.Limit = 50
+	}
+	if req.Limit > 500 {
+		req.Limit = 500 // Максимальный лимит для защиты
+	}
+	if req.SortBy == "" {
+		req.SortBy = "confidence"
+	}
+	if req.SortDir == "" {
+		req.SortDir = "desc"
+	}
+
+	// Копируем группы для фильтрации и сортировки
+	allGroups := fullResponse.Groups
+
+	// Применяем поиск (фильтрация по названию)
+	if req.Search != "" {
+		allGroups = filterGroups(allGroups, req.Search)
+	}
+
+	// Применяем сортировку
+	allGroups = sortGroups(allGroups, req.SortBy, req.SortDir)
+
+	// Вычисляем пагинацию
+	totalItems := len(allGroups)
+	totalPages := (totalItems + req.Limit - 1) / req.Limit
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	// Корректируем страницу
+	if req.Page > totalPages {
+		req.Page = totalPages
+	}
+	if req.Page < 1 {
+		req.Page = 1
+	}
+
+	// Вычисляем индексы для среза
+	start := (req.Page - 1) * req.Limit
+	end := start + req.Limit
+	if end > totalItems {
+		end = totalItems
+	}
+
+	// Получаем пагинированные группы
+	paginatedGroups := allGroups[start:end]
+
+	return MatchResponse{
+		Groups:    paginatedGroups,
+		Unmatched: []HotelDTO{},
+		Metrics:   fullResponse.Metrics,
+		Pagination: PaginationDTO{
+			Page:       req.Page,
+			Limit:      req.Limit,
+			TotalItems: totalItems,
+			TotalPages: totalPages,
+			HasNext:    req.Page < totalPages,
+			HasPrev:    req.Page > 1,
+		},
+	}
+}
+
+// filterGroups — фильтрует группы по поисковому запросу
+func filterGroups(groups []GroupDTO, search string) []GroupDTO {
+	search = strings.ToLower(strings.TrimSpace(search))
+	if search == "" {
+		return groups
+	}
+
+	result := make([]GroupDTO, 0, len(groups))
+	for _, g := range groups {
+		if strings.Contains(strings.ToLower(g.PrimaryName), search) {
+			result = append(result, g)
+		}
+	}
+	return result
+}
+
+// sortGroups — сортирует группы по указанному полю
+func sortGroups(groups []GroupDTO, sortBy, sortDir string) []GroupDTO {
+	if len(groups) <= 1 {
+		return groups
+	}
+
+	result := make([]GroupDTO, len(groups))
+	copy(result, groups)
+
+	// Определяем функцию сравнения
+	less := func(i, j int) bool {
+		switch sortBy {
+		case "name":
+			return result[i].PrimaryName < result[j].PrimaryName
+		case "confidence":
+			return result[i].ConfidenceScore < result[j].ConfidenceScore
+		case "hotelsCount":
+			return result[i].HotelsCount < result[j].HotelsCount
+		case "providersCount":
+			return result[i].ProvidersCount < result[j].ProvidersCount
+		default:
+			return result[i].GroupID < result[j].GroupID
+		}
+	}
+
+	// Сортируем
+	for i := 0; i < len(result); i++ {
+		for j := i + 1; j < len(result); j++ {
+			if (sortDir == "asc" && less(i, j)) || (sortDir == "desc" && less(j, i)) {
+				result[i], result[j] = result[j], result[i]
+			}
+		}
+	}
+
+	return result
 }

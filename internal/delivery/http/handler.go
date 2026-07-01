@@ -48,7 +48,7 @@ func writeError(w http.ResponseWriter, status int, message string) {
 // 2. Декодирует JSON в MatchRequest
 // 3. Преобразует DTO → Domain
 // 4. Вызывает матчинг
-// 5. Преобразует результат → DTO
+// 5. Преобразует результат → DTO с пагинацией
 // 6. Отправляет JSON-ответ
 func (h *Handler) MatchHandler(w http.ResponseWriter, r *http.Request) {
 	// Проверка метода: только POST
@@ -76,8 +76,8 @@ func (h *Handler) MatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Преобразуем результат в DTO для ответа с метриками
-	response := ToDTO(result)
+	// Преобразуем результат в DTO для ответа с пагинацией
+	response := ToDTOWithPagination(result, req)
 
 	// Отправляем JSON-ответ
 	writeJSON(w, http.StatusOK, response)
@@ -91,7 +91,7 @@ func (h *Handler) MatchHandler(w http.ResponseWriter, r *http.Request) {
 // 5. Парсит CSV → []domain.Hotel
 // 6. Извлекает параметры threshold и algorithm из формы
 // 7. Вызывает матчинг
-// 8. Отправляет JSON-ответ
+// 8. Отправляет JSON-ответ с пагинацией
 func (h *Handler) UploadHandler(w http.ResponseWriter, r *http.Request) {
 	// Проверка метода: только POST
 	if r.Method != http.MethodPost {
@@ -161,8 +161,43 @@ func (h *Handler) UploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Преобразуем результат в DTO для ответа с метриками
-	response := ToDTO(result)
+	// Создаем запрос с параметрами пагинации по умолчанию
+	req := MatchRequest{
+		Page:  1,
+		Limit: 50,
+	}
+
+	// Читаем page из формы (опционально)
+	if pageStr := r.FormValue("page"); pageStr != "" {
+		if page, err := strconv.Atoi(pageStr); err == nil && page > 0 {
+			req.Page = page
+		}
+	}
+
+	// Читаем limit из формы (опционально)
+	if limitStr := r.FormValue("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 && limit <= 500 {
+			req.Limit = limit
+		}
+	}
+
+	// Читаем search из формы (опционально)
+	if search := r.FormValue("search"); search != "" {
+		req.Search = search
+	}
+
+	// Читаем sortBy из формы (опционально)
+	if sortBy := r.FormValue("sortBy"); sortBy != "" {
+		req.SortBy = sortBy
+	}
+
+	// Читаем sortDir из формы (опционально)
+	if sortDir := r.FormValue("sortDir"); sortDir != "" {
+		req.SortDir = sortDir
+	}
+
+	// Преобразуем результат в DTO для ответа с пагинацией
+	response := ToDTOWithPagination(result, req)
 
 	// Отправляем JSON-ответ
 	writeJSON(w, http.StatusOK, response)
