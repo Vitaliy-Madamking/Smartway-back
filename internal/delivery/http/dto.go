@@ -15,13 +15,13 @@ type ErrorResponse struct {
 // MatchRequest — структура входящего запроса к эндпоинту /api/match
 // Содержит список отелей и опциональные настройки матчинга
 type MatchRequest struct {
-	Hotels   []HotelDTO `json:"hotels"`              // список отелей от поставщиков
-	Config   ConfigDTO  `json:"config,omitempty"`    // настройки алгоритма (необязательно)
-	Page     int        `json:"page,omitempty"`      // номер страницы (по умолчанию 1)
-	Limit    int        `json:"limit,omitempty"`     // количество групп на странице (по умолчанию 50)
-	Search   string     `json:"search,omitempty"`    // поиск по названию группы
-	SortBy   string     `json:"sortBy,omitempty"`    // поле для сортировки: "name", "confidence", "hotelsCount"
-	SortDir  string     `json:"sortDir,omitempty"`   // направление сортировки: "asc" или "desc" (по умолчанию "desc")
+	Hotels  []HotelDTO `json:"hotels"`            // список отелей от поставщиков
+	Config  ConfigDTO  `json:"config,omitempty"`  // настройки алгоритма (необязательно)
+	Page    int        `json:"page,omitempty"`    // номер страницы (по умолчанию 1)
+	Limit   int        `json:"limit,omitempty"`   // количество групп на странице (по умолчанию 50)
+	Search  string     `json:"search,omitempty"`  // поиск по названию группы
+	SortBy  string     `json:"sortBy,omitempty"`  // поле для сортировки: "name", "confidence", "hotelsCount"
+	SortDir string     `json:"sortDir,omitempty"` // направление сортировки: "asc" или "desc" (по умолчанию "desc")
 }
 
 // HotelDTO — DTO для отеля в JSON-запросах и ответах
@@ -51,41 +51,41 @@ type ConfigDTO struct {
 // MatchResponse — структура ответа сервера
 // Содержит найденные группы, метрики и отели без совпадений
 type MatchResponse struct {
-	Groups     []GroupDTO     `json:"groups"`     // группы совпавших отелей
-	Unmatched  []HotelDTO     `json:"unmatched"`  // отели без совпадений (всегда пустой)
-	Metrics    MetricsDTO     `json:"metrics"`    // метрики результата
-	Pagination PaginationDTO  `json:"pagination"` // информация о пагинации
+	Groups     []GroupDTO    `json:"groups"`     // группы совпавших отелей
+	Unmatched  []HotelDTO    `json:"unmatched"`  // отели без совпадений (всегда пустой)
+	Metrics    MetricsDTO    `json:"metrics"`    // метрики результата
+	Pagination PaginationDTO `json:"pagination"` // информация о пагинации
 }
 
 // PaginationDTO — информация о пагинации
 type PaginationDTO struct {
-	Page       int  `json:"page"`        // текущая страница
-	Limit      int  `json:"limit"`       // элементов на странице
-	TotalItems int  `json:"totalItems"`  // всего элементов
-	TotalPages int  `json:"totalPages"`  // всего страниц
-	HasNext    bool `json:"hasNext"`     // есть ли следующая страница
-	HasPrev    bool `json:"hasPrev"`     // есть ли предыдущая страница
+	Page       int  `json:"page"`       // текущая страница
+	Limit      int  `json:"limit"`      // элементов на странице
+	TotalItems int  `json:"totalItems"` // всего элементов
+	TotalPages int  `json:"totalPages"` // всего страниц
+	HasNext    bool `json:"hasNext"`    // есть ли следующая страница
+	HasPrev    bool `json:"hasPrev"`    // есть ли предыдущая страница
 }
 
 // MetricsDTO — метрики результата матчинга (формат для фронтенда)
 type MetricsDTO struct {
-	TotalHotels        int     `json:"totalHotels"`        // всего отелей
-	TotalGroups        int     `json:"totalGroups"`        // всего групп (включая одиночные)
-	TotalDuplicates    int     `json:"totalDuplicates"`    // всего дубликатов (отели в группах с >=2)
-	TotalProviders     int     `json:"totalProviders"`     // количество поставщиков
-	AverageConfidence  float64 `json:"averageConfidence"`  // средняя уверенность
+	TotalHotels       int     `json:"totalHotels"`       // всего отелей
+	TotalGroups       int     `json:"totalGroups"`       // всего групп (включая одиночные)
+	TotalDuplicates   int     `json:"totalDuplicates"`   // всего дубликатов (отели в группах с >=2)
+	TotalProviders    int     `json:"totalProviders"`    // количество поставщиков
+	AverageConfidence float64 `json:"averageConfidence"` // средняя уверенность
 }
 
 // GroupDTO — группа совпавших отелей в ответе
 type GroupDTO struct {
-	GroupID         string         `json:"groupId"`         // уникальный ID группы
-	PrimaryName     string         `json:"primaryName"`     // основное название (первый отель)
-	ConfidenceScore float64        `json:"confidenceScore"` // степень уверенности (0..1)
-	MatchScore      float64        `json:"matchScore"`      // оценка совпадения
-	ProvidersCount  int            `json:"providersCount"`  // количество поставщиков в группе
-	HotelsCount     int            `json:"hotelsCount"`     // количество отелей в группе
-	MatchReasons    map[string]any `json:"matchReasons"`    // причины объединения
-	Hotels          []HotelDTO     `json:"hotels"`          // список отелей в группе
+	GroupID         string     `json:"groupId"`         // уникальный ID группы
+	PrimaryName     string     `json:"primaryName"`     // основное название (первый отель)
+	ConfidenceScore float64    `json:"confidenceScore"` // степень уверенности (0..1)
+	MatchScore      float64    `json:"matchScore"`      // оценка совпадения
+	ProvidersCount  int        `json:"providersCount"`  // количество поставщиков в группе
+	HotelsCount     int        `json:"hotelsCount"`     // количество отелей в группе
+	MatchReasons    []string   `json:"matchReasons"`    // причины объединения
+	Hotels          []HotelDTO `json:"hotels"`          // список отелей в группе
 }
 
 // ToDomain — преобразует MatchRequest в доменные модели
@@ -139,9 +139,9 @@ func (r MatchRequest) ToDomain() ([]domain.Hotel, domain.Config) {
 func ToDTO(result *domain.Result) MatchResponse {
 	if result == nil {
 		return MatchResponse{
-			Groups:    []GroupDTO{},
-			Unmatched: []HotelDTO{},
-			Metrics:   MetricsDTO{},
+			Groups:     []GroupDTO{},
+			Unmatched:  []HotelDTO{},
+			Metrics:    MetricsDTO{},
 			Pagination: PaginationDTO{},
 		}
 	}
@@ -199,11 +199,11 @@ func ToDTO(result *domain.Result) MatchResponse {
 
 	// Формируем метрики для фронтенда
 	metrics := MetricsDTO{
-		TotalHotels:        len(allHotels),
-		TotalGroups:        len(allGroups),
-		TotalDuplicates:    totalDuplicates,
-		TotalProviders:     len(providers),
-		AverageConfidence:  0,
+		TotalHotels:       len(allHotels),
+		TotalGroups:       len(allGroups),
+		TotalDuplicates:   totalDuplicates,
+		TotalProviders:    len(providers),
+		AverageConfidence: 0,
 	}
 
 	if confidenceCount > 0 {
@@ -232,11 +232,7 @@ func ToDTO(result *domain.Result) MatchResponse {
 		}
 
 		// Причины матчинга
-		matchReasons := map[string]any{
-			"matched_suppliers": providersList,
-			"total":             len(g.Hotels),
-			"confidence":        g.ConfidenceScore,
-		}
+		matchReasons := g.MatchReasons
 
 		// Преобразуем отели в DTO
 		hotelsDTO := make([]HotelDTO, len(g.Hotels))
