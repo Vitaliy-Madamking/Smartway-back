@@ -2,6 +2,7 @@ package http
 
 import (
 	"hotel-matcher/internal/domain"
+	"sort"
 	"strings"
 )
 
@@ -69,11 +70,18 @@ type PaginationDTO struct {
 
 // MetricsDTO — метрики результата матчинга (формат для фронтенда)
 type MetricsDTO struct {
-	TotalHotels       int     `json:"totalHotels"`       // всего отелей
-	TotalGroups       int     `json:"totalGroups"`       // всего групп (включая одиночные)
-	TotalDuplicates   int     `json:"totalDuplicates"`   // всего дубликатов (отели в группах с >=2)
-	TotalProviders    int     `json:"totalProviders"`    // количество поставщиков
-	AverageConfidence float64 `json:"averageConfidence"` // средняя уверенность
+	TotalHotels       int                `json:"totalHotels"`       // всего отелей
+	TotalGroups       int                `json:"totalGroups"`       // всего групп (включая одиночные)
+	TotalDuplicates   int                `json:"totalDuplicates"`   // всего дубликатов (отели в группах с >=2)
+	TotalProviders    int                `json:"totalProviders"`    // количество поставщиков
+	AverageConfidence float64            `json:"averageConfidence"` // средняя уверенность
+	GroupSizeStats    []GroupSizeStatDTO `json:"groupSizeStats"`
+}
+
+// GroupSizeStatDTO — статистика по количеству групп определённого размера
+type GroupSizeStatDTO struct {
+	HotelsCount int `json:"hotelsCount"` // сколько отелей в группе (1, 2, 3, ...)
+	GroupsCount int `json:"groupsCount"` // сколько таких групп
 }
 
 // GroupDTO — группа совпавших отелей в ответе
@@ -174,11 +182,17 @@ func ToDTO(result *domain.Result) MatchResponse {
 		})
 	}
 
+	sizeCounts := make(map[int]int)
+	for _, group := range allGroups {
+		sizeCounts[len(group.Hotels)]++
+	}
+
+	groupSizeStats := countGroupSize(sizeCounts)
+
 	// Считаем уверенность и дубликаты
-	var totalConfidence float64
-	var minConfidence float64 = 1.0
-	var maxConfidence float64
-	confidenceCount := len(result.Groups)
+	var totalConfidence, maxConfidence float64
+	minConfidence := 1.0
+	confidenceCount := 0
 	totalDuplicates := 0
 
 	for _, g := range result.Groups {
@@ -204,6 +218,7 @@ func ToDTO(result *domain.Result) MatchResponse {
 		TotalDuplicates:   totalDuplicates,
 		TotalProviders:    len(providers),
 		AverageConfidence: 0,
+		GroupSizeStats:    groupSizeStats,
 	}
 
 	if confidenceCount > 0 {
@@ -418,4 +433,23 @@ func sortGroups(groups []GroupDTO, sortBy, sortDir string) []GroupDTO {
 	}
 
 	return result
+}
+
+func countGroupSize(sizeCounts map[int]int) []GroupSizeStatDTO {
+	var groupSizeStats []GroupSizeStatDTO
+
+	// Сортируем размеры по возрастанию для стабильного вывода
+	sizes := make([]int, 0, len(sizeCounts))
+	for size := range sizeCounts {
+		sizes = append(sizes, size)
+	}
+	sort.Ints(sizes)
+
+	for _, size := range sizes {
+		groupSizeStats = append(groupSizeStats, GroupSizeStatDTO{
+			HotelsCount: size,
+			GroupsCount: sizeCounts[size],
+		})
+	}
+	return groupSizeStats
 }
