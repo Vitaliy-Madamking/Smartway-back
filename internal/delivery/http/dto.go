@@ -449,7 +449,7 @@ func sortGroups(groups []GroupDTO, sortBy, sortDir string) []GroupDTO {
 	// Сортируем
 	for i := 0; i < len(result); i++ {
 		for j := i + 1; j < len(result); j++ {
-			if (sortDir == "asc" && less(i, j)) || (sortDir == "desc" && less(j, i)) {
+			if (sortDir == "asc" && less(j, i)) || (sortDir == "desc" && less(i, j)) {
 				result[i], result[j] = result[j], result[i]
 			}
 		}
