@@ -1,9 +1,11 @@
 package http
 
 import (
-	"hotel-matcher/internal/domain"
 	"sort"
 	"strings"
+
+	"hotel-matcher/internal/domain"
+	"hotel-matcher/internal/pkg/algorithms"
 )
 
 // ErrorResponse — JSON-ответ при ошибке
@@ -75,7 +77,7 @@ type MetricsDTO struct {
 	TotalDuplicates   int                `json:"totalDuplicates"`   // всего дубликатов (отели в группах с >=2)
 	TotalProviders    int                `json:"totalProviders"`    // количество поставщиков
 	AverageConfidence float64            `json:"averageConfidence"` // средняя уверенность
-	GroupSizeStats    []GroupSizeStatDTO `json:"groupSizeStats"`
+	GroupSizeStats    []GroupSizeStatDTO `json:"groupSizeStats"`    // распределение групп по количеству отелей
 }
 
 // GroupSizeStatDTO — статистика по количеству групп определённого размера
@@ -84,16 +86,35 @@ type GroupSizeStatDTO struct {
 	GroupsCount int `json:"groupsCount"` // сколько таких групп
 }
 
+// PairwiseSimilarityDTO — попарное сходство между двумя отелями внутри группы
+// IndexA/IndexB — индексы отелей в массиве GroupDTO.Hotels
+type PairwiseSimilarityDTO struct {
+	IndexA     int     `json:"indexA"`
+	IndexB     int     `json:"indexB"`
+	Similarity float64 `json:"similarity"` // итоговое взвешенное сходство (0..1)
+}
+
+// FeatureContributionDTO — средний вклад каждого признака в сходство внутри группы (0..1)
+// Считается как среднее по всем парам отелей в группе
+type FeatureContributionDTO struct {
+	Name    float64 `json:"name"`
+	Address float64 `json:"address"`
+	Geo     float64 `json:"geo"`
+	City    float64 `json:"city"`
+}
+
 // GroupDTO — группа совпавших отелей в ответе
 type GroupDTO struct {
-	GroupID         string     `json:"groupId"`         // уникальный ID группы
-	PrimaryName     string     `json:"primaryName"`     // основное название (первый отель)
-	ConfidenceScore float64    `json:"confidenceScore"` // степень уверенности (0..1)
-	MatchScore      float64    `json:"matchScore"`      // оценка совпадения
-	ProvidersCount  int        `json:"providersCount"`  // количество поставщиков в группе
-	HotelsCount     int        `json:"hotelsCount"`     // количество отелей в группе
-	MatchReasons    []string   `json:"matchReasons"`    // причины объединения
-	Hotels          []HotelDTO `json:"hotels"`          // список отелей в группе
+	GroupID             string                  `json:"groupId"`                       // уникальный ID группы
+	PrimaryName         string                  `json:"primaryName"`                   // основное название (первый отель)
+	ConfidenceScore     float64                 `json:"confidenceScore"`               // степень уверенности (0..1)
+	MatchScore          float64                 `json:"matchScore"`                    // оценка совпадения
+	ProvidersCount      int                     `json:"providersCount"`                // количество поставщиков в группе
+	HotelsCount         int                     `json:"hotelsCount"`                   // количество отелей в группе
+	MatchReasons        []string                `json:"matchReasons"`                  // причины объединения
+	Hotels              []HotelDTO              `json:"hotels"`                        // список отелей в группе
+	PairwiseMatrix      []PairwiseSimilarityDTO `json:"pairwiseMatrix,omitempty"`      // попарное сходство (только для групп с >=2 отелей)
+	FeatureContribution FeatureContributionDTO  `json:"featureContribution,omitempty"` // средний вклад признаков по парам внутри группы
 }
 
 // ToDomain — преобразует MatchRequest в доменные модели
@@ -143,8 +164,9 @@ func (r MatchRequest) ToDomain() ([]domain.Hotel, domain.Config) {
 
 // ToDTO — преобразует доменный результат в ответ для клиента
 // Конвертирует domain.Result → MatchResponse (DTO)
-// Добавлены: метрики, primaryName, matchScore, providersCount, hotelsCount, matchReasons
-func ToDTO(result *domain.Result) MatchResponse {
+// cfg нужен для пересчёта попарного сходства и вклада признаков внутри групп
+// (веса и алгоритм должны совпадать с теми, что использовались при матчинге)
+func ToDTO(result *domain.Result, cfg domain.Config) MatchResponse {
 	if result == nil {
 		return MatchResponse{
 			Groups:     []GroupDTO{},
@@ -182,11 +204,11 @@ func ToDTO(result *domain.Result) MatchResponse {
 		})
 	}
 
+	// Распределение групп по количеству отелей
 	sizeCounts := make(map[int]int)
 	for _, group := range allGroups {
 		sizeCounts[len(group.Hotels)]++
 	}
-
 	groupSizeStats := countGroupSize(sizeCounts)
 
 	// Считаем уверенность и дубликаты
@@ -241,10 +263,6 @@ func ToDTO(result *domain.Result) MatchResponse {
 				providersInGroup[h.Source] = true
 			}
 		}
-		providersList := make([]string, 0, len(providersInGroup))
-		for p := range providersInGroup {
-			providersList = append(providersList, p)
-		}
 
 		// Причины матчинга
 		matchReasons := g.MatchReasons
@@ -264,15 +282,20 @@ func ToDTO(result *domain.Result) MatchResponse {
 			}
 		}
 
+		// Попарная матрица сходства + средний вклад признаков внутри группы
+		pairwiseMatrix, featureContribution := buildGroupStats(g.Hotels, cfg)
+
 		groupsDTO = append(groupsDTO, GroupDTO{
-			GroupID:         g.ID,
-			PrimaryName:     primaryName,
-			ConfidenceScore: g.ConfidenceScore,
-			MatchScore:      g.MatchScore,
-			ProvidersCount:  len(providersInGroup),
-			HotelsCount:     len(g.Hotels),
-			MatchReasons:    matchReasons,
-			Hotels:          hotelsDTO,
+			GroupID:             g.ID,
+			PrimaryName:         primaryName,
+			ConfidenceScore:     g.ConfidenceScore,
+			MatchScore:          g.MatchScore,
+			ProvidersCount:      len(providersInGroup),
+			HotelsCount:         len(g.Hotels),
+			MatchReasons:        matchReasons,
+			Hotels:              hotelsDTO,
+			PairwiseMatrix:      pairwiseMatrix,
+			FeatureContribution: featureContribution,
 		})
 	}
 
@@ -293,9 +316,9 @@ func ToDTO(result *domain.Result) MatchResponse {
 
 // ToDTOWithPagination — преобразует доменный результат в ответ с пагинацией
 // Конвертирует domain.Result → MatchResponse с учетом пагинации, поиска и сортировки
-func ToDTOWithPagination(result *domain.Result, req MatchRequest) MatchResponse {
+func ToDTOWithPagination(result *domain.Result, cfg domain.Config, req MatchRequest) MatchResponse {
 	// Получаем все группы через стандартный ToDTO
-	fullResponse := ToDTO(result)
+	fullResponse := ToDTO(result, cfg)
 
 	// Если групп нет, возвращаем пустой ответ
 	if len(fullResponse.Groups) == 0 {
@@ -325,7 +348,7 @@ func ToDTOWithPagination(result *domain.Result, req MatchRequest) MatchResponse 
 		req.Limit = 500 // Максимальный лимит для защиты
 	}
 	if req.SortBy == "" {
-		req.SortBy = "confidence"
+		req.SortBy = "hotelsCount"
 	}
 	if req.SortDir == "" {
 		req.SortDir = "desc"
@@ -435,10 +458,11 @@ func sortGroups(groups []GroupDTO, sortBy, sortDir string) []GroupDTO {
 	return result
 }
 
+// countGroupSize — строит отсортированное по возрастанию распределение
+// количества групп по числу отелей в них
 func countGroupSize(sizeCounts map[int]int) []GroupSizeStatDTO {
 	var groupSizeStats []GroupSizeStatDTO
 
-	// Сортируем размеры по возрастанию для стабильного вывода
 	sizes := make([]int, 0, len(sizeCounts))
 	for size := range sizeCounts {
 		sizes = append(sizes, size)
@@ -452,4 +476,59 @@ func countGroupSize(sizeCounts map[int]int) []GroupSizeStatDTO {
 		})
 	}
 	return groupSizeStats
+}
+
+// computeFeatureScores — считает сходство пары отелей по каждому признаку
+// и итоговый взвешенный скор. Использует те же алгоритмы и веса, что и
+// usecase.calculateMatchScore, чтобы цифры совпадали с логикой матчинга.
+func computeFeatureScores(a, b domain.Hotel, cfg domain.Config) (name, address, geo, city, total float64) {
+	name = algorithms.CompareNamesWithAlgorithm(a.Name, b.Name, cfg.Algorithm)
+	address = algorithms.CompareAddressesWithAlgorithm(a.Address, b.Address, cfg.Algorithm)
+	geo = algorithms.CompareCoordinates(a.Latitude, a.Longitude, b.Latitude, b.Longitude)
+	city = algorithms.CompareLocationWithAlgorithm(a.City, a.Country, b.City, b.Country, cfg.Algorithm)
+
+	total = cfg.NameWeight*name + cfg.AddressWeight*address + cfg.GeoWeight*geo + cfg.LocationWeight*city
+
+	return
+}
+
+// buildGroupStats — строит попарную матрицу сходства и средний вклад признаков
+// для группы. Возвращает nil-матрицу и нулевой вклад для групп из 1 отеля.
+func buildGroupStats(hotels []domain.Hotel, cfg domain.Config) ([]PairwiseSimilarityDTO, FeatureContributionDTO) {
+	n := len(hotels)
+	if n < 2 {
+		return nil, FeatureContributionDTO{}
+	}
+
+	matrix := make([]PairwiseSimilarityDTO, 0, n*(n-1)/2)
+
+	var sumName, sumAddress, sumGeo, sumCity float64
+	pairsCount := 0
+
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			name, address, geo, city, total := computeFeatureScores(hotels[i], hotels[j], cfg)
+
+			matrix = append(matrix, PairwiseSimilarityDTO{
+				IndexA:     i,
+				IndexB:     j,
+				Similarity: total,
+			})
+
+			sumName += name
+			sumAddress += address
+			sumGeo += geo
+			sumCity += city
+			pairsCount++
+		}
+	}
+
+	contribution := FeatureContributionDTO{
+		Name:    sumName / float64(pairsCount),
+		Address: sumAddress / float64(pairsCount),
+		Geo:     sumGeo / float64(pairsCount),
+		City:    sumCity / float64(pairsCount),
+	}
+
+	return matrix, contribution
 }

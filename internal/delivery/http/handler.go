@@ -77,7 +77,9 @@ func (h *Handler) MatchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Преобразуем результат в DTO для ответа с пагинацией
-	response := ToDTOWithPagination(result, req)
+	// cfg передаём тот же, что использовался в матчинге — чтобы попарная
+	// матрица и вклад признаков в группах совпадали с реальным алгоритмом
+	response := ToDTOWithPagination(result, cfg, req)
 
 	// Отправляем JSON-ответ
 	writeJSON(w, http.StatusOK, response)
@@ -197,7 +199,8 @@ func (h *Handler) UploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Преобразуем результат в DTO для ответа с пагинацией
-	response := ToDTOWithPagination(result, req)
+	// cfg передаём тот же, что использовался в матчинге (с учётом threshold/algorithm из формы)
+	response := ToDTOWithPagination(result, cfg, req)
 
 	// Отправляем JSON-ответ
 	writeJSON(w, http.StatusOK, response)
