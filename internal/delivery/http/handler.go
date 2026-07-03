@@ -38,7 +38,7 @@ func (h *Handler) MatchHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	response := ToDTO(result)
+	response := ToDTO(result, cfg)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.logger.Error("failed to encode response", "error", err)
@@ -98,7 +98,7 @@ func (h *Handler) UploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := ToDTO(result)
+	response := ToDTO(result, cfg)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.logger.Error("failed to encode response", "error", err)
