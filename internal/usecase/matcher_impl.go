@@ -16,13 +16,6 @@ const (
 	ReasonLocation = "Similar locations"
 )
 
-const (
-	ReasonName     = "Similar names"
-	ReasonAddress  = "Similar addresses"
-	ReasonGeo      = "Similar geo"
-	ReasonLocation = "Similar locations"
-)
-
 // matcherImpl - структура, реализующая интерфейс Matcher
 type matcherImpl struct {
 	repo HotelRepository // Репозиторий(переделать под постгру) для работы с отелями (пока не используется)
