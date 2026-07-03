@@ -18,6 +18,6 @@ func DefaultConfig() Config {
 		GeoWeight:      0.30,
 		LocationWeight: 0.10,
 		Threshold:      0.75,
-		Algorithm:      "jaro-winkler", // По умолчанию Jaro-Winkler 
+		Algorithm:      "jaro-winkler", // По умолчанию Jaro-Winkler- текущий алгоритм
 	}
 }

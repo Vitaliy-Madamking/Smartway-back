@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"hotel-matcher/internal/domain"
+	"hotel-matcher/internal/pkg/algorithms"
 )
 
 // ErrorResponse — JSON-ответ при ошибке
@@ -163,12 +164,8 @@ func (r MatchRequest) ToDomain() ([]domain.Hotel, domain.Config) {
 
 // ToDTO — преобразует доменный результат в ответ для клиента
 // Конвертирует domain.Result → MatchResponse (DTO)
-//
-// cfg больше не используется внутри: попарная матрица (PairwiseMatrix) и
-// вклад признаков (FeatureContribution) теперь считаются один раз в
-// usecase.calculateGroupConfidence и приходят уже готовыми внутри
-// domain.Group — здесь только маппинг в DTO, без повторного вызова
-// алгоритмов сравнения. Параметр оставлен для совместимости сигнатуры.
+// cfg нужен для пересчёта попарного сходства и вклада признаков внутри групп
+// (веса и алгоритм должны совпадать с теми, что использовались при матчинге)
 func ToDTO(result *domain.Result, cfg domain.Config) MatchResponse {
 	if result == nil {
 		return MatchResponse{
@@ -285,23 +282,8 @@ func ToDTO(result *domain.Result, cfg domain.Config) MatchResponse {
 			}
 		}
 
-		// Попарная матрица сходства + средний вклад признаков внутри группы —
-		// просто маппинг из domain.Group, без вызова алгоритмов сравнения
-		pairwiseMatrix := make([]PairwiseSimilarityDTO, len(g.PairwiseMatrix))
-		for i, p := range g.PairwiseMatrix {
-			pairwiseMatrix[i] = PairwiseSimilarityDTO{
-				IndexA:     p.IndexA,
-				IndexB:     p.IndexB,
-				Similarity: p.Similarity,
-			}
-		}
-
-		featureContribution := FeatureContributionDTO{
-			Name:    g.FeatureContribution.Name,
-			Address: g.FeatureContribution.Address,
-			Geo:     g.FeatureContribution.Geo,
-			City:    g.FeatureContribution.City,
-		}
+		// Попарная матрица сходства + средний вклад признаков внутри группы
+		pairwiseMatrix, featureContribution := buildGroupStats(g.Hotels, cfg)
 
 		groupsDTO = append(groupsDTO, GroupDTO{
 			GroupID:             g.ID,
@@ -353,6 +335,26 @@ func ToDTOWithPagination(result *domain.Result, cfg domain.Config, req MatchRequ
 				HasPrev:    false,
 			},
 		}
+
+		featureContribution := FeatureContributionDTO{
+			Name:    g.FeatureContribution.Name,
+			Address: g.FeatureContribution.Address,
+			Geo:     g.FeatureContribution.Geo,
+			City:    g.FeatureContribution.City,
+		}
+
+		groupsDTO = append(groupsDTO, GroupDTO{
+			GroupID:             g.ID,
+			PrimaryName:         primaryName,
+			ConfidenceScore:     g.ConfidenceScore,
+			MatchScore:          g.MatchScore,
+			ProvidersCount:      len(providersInGroup),
+			HotelsCount:         len(g.Hotels),
+			MatchReasons:        matchReasons,
+			Hotels:              hotelsDTO,
+			PairwiseMatrix:      pairwiseMatrix,
+			FeatureContribution: featureContribution,
+		})
 	}
 
 	// Устанавливаем значения по умолчанию
@@ -494,4 +496,59 @@ func countGroupSize(sizeCounts map[int]int) []GroupSizeStatDTO {
 		})
 	}
 	return groupSizeStats
+}
+
+// computeFeatureScores — считает сходство пары отелей по каждому признаку
+// и итоговый взвешенный скор. Использует те же алгоритмы и веса, что и
+// usecase.calculateMatchScore, чтобы цифры совпадали с логикой матчинга.
+func computeFeatureScores(a, b domain.Hotel, cfg domain.Config) (name, address, geo, city, total float64) {
+	name = algorithms.CompareNamesWithAlgorithm(a.Name, b.Name, cfg.Algorithm)
+	address = algorithms.CompareAddressesWithAlgorithm(a.Address, b.Address, cfg.Algorithm)
+	geo = algorithms.CompareCoordinates(a.Latitude, a.Longitude, b.Latitude, b.Longitude)
+	city = algorithms.CompareLocationWithAlgorithm(a.City, a.Country, b.City, b.Country, cfg.Algorithm)
+
+	total = cfg.NameWeight*name + cfg.AddressWeight*address + cfg.GeoWeight*geo + cfg.LocationWeight*city
+
+	return
+}
+
+// buildGroupStats — строит попарную матрицу сходства и средний вклад признаков
+// для группы. Возвращает nil-матрицу и нулевой вклад для групп из 1 отеля.
+func buildGroupStats(hotels []domain.Hotel, cfg domain.Config) ([]PairwiseSimilarityDTO, FeatureContributionDTO) {
+	n := len(hotels)
+	if n < 2 {
+		return nil, FeatureContributionDTO{}
+	}
+
+	matrix := make([]PairwiseSimilarityDTO, 0, n*(n-1)/2)
+
+	var sumName, sumAddress, sumGeo, sumCity float64
+	pairsCount := 0
+
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			name, address, geo, city, total := computeFeatureScores(hotels[i], hotels[j], cfg)
+
+			matrix = append(matrix, PairwiseSimilarityDTO{
+				IndexA:     i,
+				IndexB:     j,
+				Similarity: total,
+			})
+
+			sumName += name
+			sumAddress += address
+			sumGeo += geo
+			sumCity += city
+			pairsCount++
+		}
+	}
+
+	contribution := FeatureContributionDTO{
+		Name:    sumName / float64(pairsCount),
+		Address: sumAddress / float64(pairsCount),
+		Geo:     sumGeo / float64(pairsCount),
+		City:    sumCity / float64(pairsCount),
+	}
+
+	return matrix, contribution
 }
