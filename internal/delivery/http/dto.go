@@ -335,6 +335,26 @@ func ToDTOWithPagination(result *domain.Result, cfg domain.Config, req MatchRequ
 				HasPrev:    false,
 			},
 		}
+
+		featureContribution := FeatureContributionDTO{
+			Name:    g.FeatureContribution.Name,
+			Address: g.FeatureContribution.Address,
+			Geo:     g.FeatureContribution.Geo,
+			City:    g.FeatureContribution.City,
+		}
+
+		groupsDTO = append(groupsDTO, GroupDTO{
+			GroupID:             g.ID,
+			PrimaryName:         primaryName,
+			ConfidenceScore:     g.ConfidenceScore,
+			MatchScore:          g.MatchScore,
+			ProvidersCount:      len(providersInGroup),
+			HotelsCount:         len(g.Hotels),
+			MatchReasons:        matchReasons,
+			Hotels:              hotelsDTO,
+			PairwiseMatrix:      pairwiseMatrix,
+			FeatureContribution: featureContribution,
+		})
 	}
 
 	// Устанавливаем значения по умолчанию
