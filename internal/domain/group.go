@@ -29,11 +29,13 @@ type FeatureContribution struct {
 
 // Group — группа сопоставленных отелей
 type Group struct {
-	ID              string
-	ConfidenceScore float64
-	MatchScore      float64
-	Hotels          []Hotel
-	MatchReasons    []string
+	ID                  string
+	ConfidenceScore     float64
+	MatchScore          float64
+	Hotels              []Hotel
+	MatchReasons        []string
+	PairwiseMatrix      []PairwiseSimilarity // посчитано один раз в usecase, без повторного вызова алгоритмов в http-слое
+	FeatureContribution FeatureContribution
 }
 
 // Result — итоговый ответ матчинга
