@@ -175,11 +175,25 @@ func (m *matcherImpl) processBlock(hotels []domain.Hotel, cfg domain.Config, mu 
 func calculateMatchScore(h1, h2 domain.Hotel, cfg domain.Config) (float64, []string) {
 	alg := cfg.Algorithm
 
-	// Каждый критерий сравнивается своим алгоритмом
-	nameScore := algorithms.CompareNamesWithAlgorithm(h1.Name, h2.Name, alg)                           // Учитывает префиксный бонус, хорошо для коротких строк с опечатками(Jaro-Winkler)
-	addrScore := algorithms.CompareAddressesWithAlgorithm(h1.Address, h2.Address, alg)                 // Учитывает вставки/удаления/замены, хорошо для длинных строк((Levenshtein)
-	geoScore := algorithms.CompareCoordinates(h1.Latitude, h1.Longitude, h2.Latitude, h2.Longitude)    // Вычисляет географическое расстояние в км и преобразует в оценку
-	locScore := algorithms.CompareLocationWithAlgorithm(h1.City, h1.Country, h2.City, h2.Country, alg) // Страна - точное совпадение, город - нечёткое сравнен
+	var nameScore, addrScore, geoScore, locScore float64
+
+	// Если выбран универсальный алгоритм — для каждого поля используется свой лучший алгоритм
+	if alg == "universal" {
+		// Название → Jaro-Winkler (лучший для названий, устойчив к опечаткам)
+		nameScore = algorithms.CompareNamesWithAlgorithm(h1.Name, h2.Name, "jaro-winkler")
+		// Адрес → Levenshtein (лучший для адресов, учитывает вставки/удаления)
+		addrScore = algorithms.CompareAddressesWithAlgorithm(h1.Address, h2.Address, "levenshtein")
+		// Координаты → Haversine (гео-расстояние)
+		geoScore = algorithms.CompareCoordinates(h1.Latitude, h1.Longitude, h2.Latitude, h2.Longitude)
+		// Город → Jaro (быстрый, учитывает перестановки)
+		locScore = algorithms.CompareLocationWithAlgorithm(h1.City, h1.Country, h2.City, h2.Country, "jaro")
+	} else {
+		// Обычный режим — один алгоритм для всех полей (как работало раньше)
+		nameScore = algorithms.CompareNamesWithAlgorithm(h1.Name, h2.Name, alg)                           // Учитывает префиксный бонус, хорошо для коротких строк с опечатками(Jaro-Winkler)
+		addrScore = algorithms.CompareAddressesWithAlgorithm(h1.Address, h2.Address, alg)                 // Учитывает вставки/удаления/замены, хорошо для длинных строк((Levenshtein)
+		geoScore = algorithms.CompareCoordinates(h1.Latitude, h1.Longitude, h2.Latitude, h2.Longitude)    // Вычисляет географическое расстояние в км и преобразует в оценку
+		locScore = algorithms.CompareLocationWithAlgorithm(h1.City, h1.Country, h2.City, h2.Country, alg) // Страна - точное совпадение, город - нечёткое сравнен
+	}
 
 	reasons := findMatchReasons(nameScore, addrScore, geoScore, locScore)
 

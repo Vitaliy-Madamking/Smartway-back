@@ -16,7 +16,6 @@ import (
 	"hotel-matcher/internal/usecase"                    // Бизнес-логика
 )
 
-
 func main() {
 	//Загрузка конфигурации (порт из .env или переменных окружения)
 	cfg := config.Load()
@@ -27,8 +26,15 @@ func main() {
 	// Внедрение зависимостей (Dependency Injection)
 	//Создаём репозиторий (хранилище в памяти)
 	hotelRepo := memory.NewHotelRepository()
-	//Создаём матчер (бизнес-логика) с репозиторием
-	matcher := usecase.NewMatcher(hotelRepo)
+
+	// Вариант 1: Классический матчер 
+	// matcher := usecase.NewMatcher(hotelRepo)
+
+	// Вариант 2: Универсальный матчер 
+	matcher := usecase.NewUniversalMatcher(hotelRepo)
+
+
+
 	//Создаём HTTP-обработчик с матчером и логгером
 	handler := deliveryhttp.NewHandler(matcher, log)
 
@@ -47,9 +53,9 @@ func main() {
 
 	//Применение middleware (обёртки)
 	// Порядок важен: Recovery → Logging → CORS
-	stack := deliveryhttp.RecoveryMiddleware(      // Восстановление после паники
-		deliveryhttp.LoggingMiddleware(            // Логирование запросов
-			deliveryhttp.CORSMiddleware(mux),      // CORS (для фронта)
+	stack := deliveryhttp.RecoveryMiddleware( // Восстановление после паники
+		deliveryhttp.LoggingMiddleware( // Логирование запросов
+			deliveryhttp.CORSMiddleware(mux), // CORS (для фронта)
 			slog.Default(),
 		),
 		slog.Default(),
@@ -57,11 +63,11 @@ func main() {
 
 	//Создание HTTP-сервера
 	server := &stdhttp.Server{
-		Addr:         ":" + cfg.Port,                // Порт из конфига
-		Handler:      stack,                         // Роутер с middleware
-		ReadTimeout:  10 * time.Second,              // Макс. время чтения запроса
-		WriteTimeout: 10 * time.Second,              // Макс. время записи ответа
-		IdleTimeout:  60 * time.Second,              // Макс. время простоя соединения
+		Addr:         ":" + cfg.Port,   // Порт из конфига
+		Handler:      stack,            // Роутер с middleware
+		ReadTimeout:  10 * time.Second, // Макс. время чтения запроса
+		WriteTimeout: 10 * time.Second, // Макс. время записи ответа
+		IdleTimeout:  60 * time.Second, // Макс. время простоя соединения
 	}
 
 	//Запуск сервера в отдельной горутине
@@ -80,7 +86,7 @@ func main() {
 	<-quit // Блокируемся до получения сигнала
 
 	log.Info("shutting down...")
-	
+
 	// Даём 30 секунд на завершение текущих запросов
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -89,6 +95,6 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.Error("shutdown error", "error", err)
 	}
-	
+
 	log.Info("server stopped")
 }
