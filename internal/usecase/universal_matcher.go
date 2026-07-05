@@ -55,7 +55,7 @@ func (m *UniversalMatcher) Match(ctx context.Context, hotels []domain.Hotel, cfg
 	for groupID, hotelsInGroup := range groups {
 		// Вычисляем оценки для группы
 		matchScore, reasons := calculateUniversalGroupConfidence(hotelsInGroup, cfg)
-		
+
 		// Считаем поставщиков в группе
 		providersInGroup := make(map[string]bool)
 		for _, h := range hotelsInGroup {
@@ -63,16 +63,24 @@ func (m *UniversalMatcher) Match(ctx context.Context, hotels []domain.Hotel, cfg
 				providersInGroup[h.Source] = true
 			}
 		}
-		
+
 		// Итоговая уверенность
 		confidence := calculateUniversalConfidenceScore(matchScore, len(hotelsInGroup), len(providersInGroup))
 
+		var pairwiseMatrix []domain.PairwiseSimilarity
+		var featureContribution domain.FeatureContribution
+
+		pairwiseMatrix = calculatePairwiseMatrix(hotelsInGroup, cfg)
+		featureContribution = calculateFeatureContribution(hotelsInGroup, cfg)
+
 		result.Groups = append(result.Groups, domain.Group{
-			ID:              groupID,
-			ConfidenceScore: confidence,
-			MatchScore:      matchScore,
-			Hotels:          hotelsInGroup,
-			MatchReasons:    reasons,
+			ID:                  groupID,
+			ConfidenceScore:     confidence,
+			MatchScore:          matchScore,
+			Hotels:              hotelsInGroup,
+			MatchReasons:        reasons,
+			PairwiseMatrix:      pairwiseMatrix,
+			FeatureContribution: featureContribution,
 		})
 	}
 
@@ -101,7 +109,7 @@ func buildUniversalBlocks(hotels []domain.Hotel) map[string][]domain.Hotel {
 
 		// Если страна пустая — используем координатную сетку
 		if h.Country == "" && h.Latitude != 0 && h.Longitude != 0 {
-			latBlock := int(h.Latitude / 5)  // Блоки по 5 градусов
+			latBlock := int(h.Latitude / 5) // Блоки по 5 градусов
 			lonBlock := int(h.Longitude / 5)
 			key = fmt.Sprintf("geo|%d|%d", latBlock, lonBlock)
 		}
