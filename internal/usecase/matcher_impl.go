@@ -74,12 +74,27 @@ func (m *matcherImpl) Match(ctx context.Context, hotels []domain.Hotel, cfg doma
 		matchScore, reasons := calculateGroupConfidence(hotelsInGroup, cfg)
 		score := calculateConfidenceScore(matchScore, len(hotelsInGroup), len(providersInGroup))
 
+
+		// НОВОЕ: вычисляем pairwiseMatrix и featureContribution для группы
+		
+		var pairwiseMatrix []domain.PairwiseSimilarity
+		var featureContribution domain.FeatureContribution
+
+		if len(hotelsInGroup) >= 2 {
+			// Вычисляем попарное сходство для всех пар в группе
+			pairwiseMatrix = calculatePairwiseMatrix(hotelsInGroup, cfg)
+			// Вычисляем средний вклад каждого признака
+			featureContribution = calculateFeatureContribution(hotelsInGroup, cfg)
+		}
+
 		result.Groups = append(result.Groups, domain.Group{ // Добавляем группу в результат
-			ID:              groupID, // Уникальный ID группы
-			ConfidenceScore: score,   // Степень уверенности
-			MatchScore:      matchScore,
-			Hotels:          hotelsInGroup, // Список отелей в группе
-			MatchReasons:    reasons,       // Причины совпадения
+			ID:                  groupID,              // Уникальный ID группы
+			ConfidenceScore:     score,                // Степень уверенности
+			MatchScore:          matchScore,           // Оценка совпадения
+			Hotels:              hotelsInGroup,        // Список отелей в группе
+			MatchReasons:        reasons,              // Причины совпадения
+			PairwiseMatrix:      pairwiseMatrix,       // Попарная матрица сходства
+			FeatureContribution: featureContribution,  // Средний вклад признаков
 		})
 	}
 
@@ -301,4 +316,82 @@ func calculateConfidenceScore(matchScore float64, hotelsCount, providersCount in
 		confidence = 0
 	}
 	return confidence
+}
+
+// НОВЫЕ ФУНКЦИИ ДЛЯ МАТРИЦЫ СХОДСТВА И ВКЛАДА ПРИЗНАКОВ
+
+// calculatePairwiseMatrix - вычисляет попарное сходство для всех пар в группе
+// Возвращает слайс структур PairwiseSimilarity, где каждая структура содержит:
+//   - IndexA, IndexB: индексы отелей в группе
+//   - Similarity: итоговая оценка сходства между ними
+func calculatePairwiseMatrix(hotels []domain.Hotel, cfg domain.Config) []domain.PairwiseSimilarity {
+	if len(hotels) < 2 {
+		return nil
+	}
+
+	matrix := make([]domain.PairwiseSimilarity, 0)
+	for i := 0; i < len(hotels); i++ {
+		for j := i + 1; j < len(hotels); j++ {
+			score, _ := calculateMatchScore(hotels[i], hotels[j], cfg)
+			matrix = append(matrix, domain.PairwiseSimilarity{
+				IndexA:     i,
+				IndexB:     j,
+				Similarity: score,
+			})
+		}
+	}
+	return matrix
+}
+
+// calculateFeatureContribution - вычисляет средний вклад каждого признака для всех пар в группе
+// Возвращает FeatureContribution со средними значениями для:
+//   - Name: средняя оценка по названиям
+//   - Address: средняя оценка по адресам
+//   - Geo: средняя оценка по координатам
+//   - City: средняя оценка по городу/стране
+func calculateFeatureContribution(hotels []domain.Hotel, cfg domain.Config) domain.FeatureContribution {
+	if len(hotels) < 2 {
+		return domain.FeatureContribution{}
+	}
+
+	var totalName, totalAddr, totalGeo, totalCity float64
+	var count int
+
+	alg := cfg.Algorithm
+
+	for i := 0; i < len(hotels); i++ {
+		for j := i + 1; j < len(hotels); j++ {
+			var nameScore, addrScore, geoScore, locScore float64
+
+			// Вычисляем оценки по каждому признаку (аналогично calculateMatchScore, но без взвешивания)
+			if alg == "universal" {
+				nameScore = algorithms.CompareNamesWithAlgorithm(hotels[i].Name, hotels[j].Name, "jaro-winkler")
+				addrScore = algorithms.CompareAddressesWithAlgorithm(hotels[i].Address, hotels[j].Address, "levenshtein")
+				geoScore = algorithms.CompareCoordinates(hotels[i].Latitude, hotels[i].Longitude, hotels[j].Latitude, hotels[j].Longitude)
+				locScore = algorithms.CompareLocationWithAlgorithm(hotels[i].City, hotels[i].Country, hotels[j].City, hotels[j].Country, "jaro")
+			} else {
+				nameScore = algorithms.CompareNamesWithAlgorithm(hotels[i].Name, hotels[j].Name, alg)
+				addrScore = algorithms.CompareAddressesWithAlgorithm(hotels[i].Address, hotels[j].Address, alg)
+				geoScore = algorithms.CompareCoordinates(hotels[i].Latitude, hotels[i].Longitude, hotels[j].Latitude, hotels[j].Longitude)
+				locScore = algorithms.CompareLocationWithAlgorithm(hotels[i].City, hotels[i].Country, hotels[j].City, hotels[j].Country, alg)
+			}
+
+			totalName += nameScore
+			totalAddr += addrScore
+			totalGeo += geoScore
+			totalCity += locScore
+			count++
+		}
+	}
+
+	if count == 0 {
+		return domain.FeatureContribution{}
+	}
+
+	return domain.FeatureContribution{
+		Name:    totalName / float64(count),
+		Address: totalAddr / float64(count),
+		Geo:     totalGeo / float64(count),
+		City:    totalCity / float64(count),
+	}
 }
