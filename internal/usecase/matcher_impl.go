@@ -16,24 +16,14 @@ const (
 	ReasonLocation = "Similar locations"
 )
 
-// matcherImpl - структура, реализующая интерфейс Matcher
 type matcherImpl struct {
-	repo HotelRepository // Репозиторий(переделать под постгру) для работы с отелями (пока не используется)
+	repo HotelRepository
 }
 
 func NewMatcher(repo HotelRepository) Matcher {
 	return &matcherImpl{repo: repo}
 }
 
-// Match - ОСНОВНАЯ ФУНКЦИЯ: выполняет сопоставление отелей
-// Принимает:
-//   - ctx: контекст для управления временем жизни запроса
-//   - hotels: список отелей для сопоставления
-//   - cfg: конфигурация (веса, порог, алгоритм)
-//
-// Возвращает:
-//   - *domain.Result: группы отелей и несоответствующие отели
-//   - error: ошибка, если что-то пошло не так
 func (m *matcherImpl) Match(ctx context.Context, hotels []domain.Hotel, cfg domain.Config) (*domain.Result, error) {
 	if len(hotels) == 0 {
 		return nil, domain.ErrNoHotels
@@ -45,26 +35,25 @@ func (m *matcherImpl) Match(ctx context.Context, hotels []domain.Hotel, cfg doma
 	blocks := buildBlocks(hotels)
 	var mu sync.Mutex
 
-	groups := make(map[string][]domain.Hotel) // Карта: ID группы -> список отелей в группе
-	used := make(map[string]bool)             // Карта: ID отеля -> использован ли он уже
-	var wg sync.WaitGroup                     // WaitGroup для ожидания завершения всех горутин
+	groups := make(map[string][]domain.Hotel)
+	used := make(map[string]bool)
+	var wg sync.WaitGroup
 
 	for _, block := range blocks {
-		wg.Add(1) // Увеличиваем счётчик горутин на 1
-		// Запускаем горутину для обработки блока
+		wg.Add(1)
 		go func(h []domain.Hotel) {
-			defer wg.Done()                           // При завершении горутины уменьшаем счётчикИ
-			m.processBlock(h, cfg, &mu, groups, used) // Обрабатываем блок (сравниваем отели внутри него)
+			defer wg.Done()
+			m.processBlock(h, cfg, &mu, groups, used)
 		}(block)
 	}
-	wg.Wait() // Ожидаем завершения ВСЕХ горутин
+	wg.Wait()
 
 	result := &domain.Result{
-		Groups:    make([]domain.Group, 0), // Инициализируем слайс для групп
-		Unmatched: make([]domain.Hotel, 0), // Инициализируем слайс для несоответствующих отелей
+		Groups:    make([]domain.Group, 0),
+		Unmatched: make([]domain.Hotel, 0),
 	}
 
-	for groupID, hotelsInGroup := range groups { // Проходим по всем найденным группам
+	for groupID, hotelsInGroup := range groups {
 		providersInGroup := make(map[string]bool)
 		for _, h := range hotelsInGroup {
 			if h.Source != "" {
@@ -75,26 +64,24 @@ func (m *matcherImpl) Match(ctx context.Context, hotels []domain.Hotel, cfg doma
 		score := calculateConfidenceScore(matchScore, len(hotelsInGroup), len(providersInGroup))
 
 		
-		// НОВОЕ: вычисляем pairwiseMatrix и featureContribution для группы
+		// ВЫЧИСЛЯЕМ featureContribution и pairwiseMatrix
 		
 		var pairwiseMatrix []domain.PairwiseSimilarity
 		var featureContribution domain.FeatureContribution
 
 		if len(hotelsInGroup) >= 2 {
-			// Вычисляем попарное сходство для всех пар в группе
 			pairwiseMatrix = calculatePairwiseMatrix(hotelsInGroup, cfg)
-			// Вычисляем средний вклад каждого признака
 			featureContribution = calculateFeatureContribution(hotelsInGroup, cfg)
 		}
 
-		result.Groups = append(result.Groups, domain.Group{ // Добавляем группу в результат
-			ID:                  groupID,              // Уникальный ID группы
-			ConfidenceScore:     score,                // Степень уверенности
-			MatchScore:          matchScore,           // Оценка совпадения
-			Hotels:              hotelsInGroup,        // Список отелей в группе
-			MatchReasons:        reasons,              // Причины совпадения
-			PairwiseMatrix:      pairwiseMatrix,       // Попарная матрица сходства
-			FeatureContribution: featureContribution,  // Средний вклад признаков
+		result.Groups = append(result.Groups, domain.Group{
+			ID:                  groupID,
+			ConfidenceScore:     score,
+			MatchScore:          matchScore,
+			Hotels:              hotelsInGroup,
+			MatchReasons:        reasons,
+			PairwiseMatrix:      pairwiseMatrix,
+			FeatureContribution: featureContribution,
 		})
 	}
 
@@ -106,45 +93,31 @@ func (m *matcherImpl) Match(ctx context.Context, hotels []domain.Hotel, cfg doma
 	return result, nil
 }
 
-// buildBlocks - группировка по стране+городу (блокировка)
-// Уменьшает количество попарных сравнений
-func buildBlocks(hotels []domain.Hotel) map[string][]domain.Hotel { // Принимает список отелей, возвращает карту: ключ = страна|город, значение = список отелей
+func buildBlocks(hotels []domain.Hotel) map[string][]domain.Hotel {
 	blocks := make(map[string][]domain.Hotel)
-	// Создаём карту для блоков
-	for _, h := range hotels { // Проходим по всем отелям
-		key := fmt.Sprintf("%s|%s", h.Country, h.City) // Формируем ключ из страны и города (разделитель "|")
-		blocks[key] = append(blocks[key], h)           // Добавляем отель в соответствующий блок
+	for _, h := range hotels {
+		key := fmt.Sprintf("%s|%s", h.Country, h.City)
+		blocks[key] = append(blocks[key], h)
 	}
 	return blocks
 }
 
-// processBlock - обработка одного блока (кластеризация)
-// Сравнивает все отели внутри блока и формирует группы
-// Принимает:
-//   - hotels: список отелей в блоке
-//   - cfg: конфигурация
-//   - mu: мьютекс для синхронизации
-//   - groups: карта для записи найденных групп
-//   - used: карта для отслеживания использованных отелей
-//
-// processBlock - обработка одного блока (кластеризация)
 func (m *matcherImpl) processBlock(hotels []domain.Hotel, cfg domain.Config, mu *sync.Mutex,
 	groups map[string][]domain.Hotel, used map[string]bool) {
 
-	if len(hotels) <= 1 { // Если в блоке 1 или 0 отелей - группировка не нужна
+	if len(hotels) <= 1 {
 		return
 	}
 	for i := 0; i < len(hotels); i++ {
-		// Проверяем used с мьютексом (безопасно для горутин)
-		mu.Lock()               //Блокирвка  для безопасного доступа к used
-		if used[hotels[i].ID] { // Если отель уже использован (попал в группу) - пропускаем
-			mu.Unlock() // Разблокируем
-			continue    // Переходим к следующему отелю
+		mu.Lock()
+		if used[hotels[i].ID] {
+			mu.Unlock()
+			continue
 		}
 		used[hotels[i].ID] = true
-		mu.Unlock() // Разблокируем мьютекс
+		mu.Unlock()
 
-		cluster := []domain.Hotel{hotels[i]} // Начинаем новую группу с текущего отеля
+		cluster := []domain.Hotel{hotels[i]}
 
 		for j := i + 1; j < len(hotels); j++ {
 			mu.Lock()
@@ -154,7 +127,6 @@ func (m *matcherImpl) processBlock(hotels []domain.Hotel, cfg domain.Config, mu 
 			}
 			mu.Unlock()
 
-			// Вычисляем общую оценку совпадения
 			score, _ := calculateMatchScore(hotels[i], hotels[j], cfg)
 			if score >= cfg.Threshold {
 				mu.Lock()
@@ -178,41 +150,25 @@ func (m *matcherImpl) processBlock(hotels []domain.Hotel, cfg domain.Config, mu 
 	}
 }
 
-// calculateMatchScore - вычисляет общую оценку совпадения (взвешенная сумма)
-// Сравнивает два отеля по 4 критериям:
-//  1. Названия (Jaro-Winkler)
-//  2. Адреса (Levenshtein)
-//  3. Координаты (Haversine)
-//  4. Город/страна (Jaro)
-//
-// Каждый критерий умножается на свой вес из конфига
-// Возвращает оценку в диапазоне [0, 1]
 func calculateMatchScore(h1, h2 domain.Hotel, cfg domain.Config) (float64, []string) {
 	alg := cfg.Algorithm
 
 	var nameScore, addrScore, geoScore, locScore float64
 
-	// Если выбран универсальный алгоритм — для каждого поля используется свой лучший алгоритм
 	if alg == "universal" {
-		// Название → Jaro-Winkler (лучший для названий, устойчив к опечаткам)
 		nameScore = algorithms.CompareNamesWithAlgorithm(h1.Name, h2.Name, "jaro-winkler")
-		// Адрес → Levenshtein (лучший для адресов, учитывает вставки/удаления)
 		addrScore = algorithms.CompareAddressesWithAlgorithm(h1.Address, h2.Address, "levenshtein")
-		// Координаты → Haversine (гео-расстояние)
 		geoScore = algorithms.CompareCoordinates(h1.Latitude, h1.Longitude, h2.Latitude, h2.Longitude)
-		// Город → Jaro (быстрый, учитывает перестановки)
 		locScore = algorithms.CompareLocationWithAlgorithm(h1.City, h1.Country, h2.City, h2.Country, "jaro")
 	} else {
-		// Обычный режим — один алгоритм для всех полей (как работало раньше)
-		nameScore = algorithms.CompareNamesWithAlgorithm(h1.Name, h2.Name, alg)                           // Учитывает префиксный бонус, хорошо для коротких строк с опечатками(Jaro-Winkler)
-		addrScore = algorithms.CompareAddressesWithAlgorithm(h1.Address, h2.Address, alg)                 // Учитывает вставки/удаления/замены, хорошо для длинных строк((Levenshtein)
-		geoScore = algorithms.CompareCoordinates(h1.Latitude, h1.Longitude, h2.Latitude, h2.Longitude)    // Вычисляет географическое расстояние в км и преобразует в оценку
-		locScore = algorithms.CompareLocationWithAlgorithm(h1.City, h1.Country, h2.City, h2.Country, alg) // Страна - точное совпадение, город - нечёткое сравнен
+		nameScore = algorithms.CompareNamesWithAlgorithm(h1.Name, h2.Name, alg)
+		addrScore = algorithms.CompareAddressesWithAlgorithm(h1.Address, h2.Address, alg)
+		geoScore = algorithms.CompareCoordinates(h1.Latitude, h1.Longitude, h2.Latitude, h2.Longitude)
+		locScore = algorithms.CompareLocationWithAlgorithm(h1.City, h1.Country, h2.City, h2.Country, alg)
 	}
 
 	reasons := findMatchReasons(nameScore, addrScore, geoScore, locScore)
 
-	// Взвешенная сумма
 	return cfg.NameWeight*nameScore +
 			cfg.AddressWeight*addrScore +
 			cfg.GeoWeight*geoScore +
@@ -220,10 +176,6 @@ func calculateMatchScore(h1, h2 domain.Hotel, cfg domain.Config) (float64, []str
 		reasons
 }
 
-// calculateGroupConfidence - средняя попарная оценка внутри группы
-// Принимает список отелей в группе и конфигурацию
-// Возвращает среднюю попарную оценку внутри группы и причины сходства
-// Если в группе 1 отель - уверенность = 1.0 (100%)
 func calculateGroupConfidence(hotels []domain.Hotel, cfg domain.Config) (float64, []string) {
 	if len(hotels) <= 1 {
 		return 1.0, nil
@@ -231,18 +183,13 @@ func calculateGroupConfidence(hotels []domain.Hotel, cfg domain.Config) (float64
 
 	var total float64
 	var count int
-
-	// Множество уникальных причин
 	reasonsSet := make(map[string]struct{})
 
 	for i := 0; i < len(hotels); i++ {
 		for j := i + 1; j < len(hotels); j++ {
 			rating, reasons := calculateMatchScore(hotels[i], hotels[j], cfg)
-
 			total += rating
 			count++
-
-			// Добавляем причины в множество
 			for _, reason := range reasons {
 				reasonsSet[reason] = struct{}{}
 			}
@@ -253,7 +200,6 @@ func calculateGroupConfidence(hotels []domain.Hotel, cfg domain.Config) (float64
 		return 1.0, nil
 	}
 
-	// Преобразуем множество в слайс
 	uniqueReasons := make([]string, 0, len(reasonsSet))
 	for reason := range reasonsSet {
 		uniqueReasons = append(uniqueReasons, reason)
@@ -264,7 +210,6 @@ func calculateGroupConfidence(hotels []domain.Hotel, cfg domain.Config) (float64
 
 func findMatchReasons(nameScore, addrScore, geoScore, locScore float64) []string {
 	var reasons []string
-
 	if nameScore >= 0.7 {
 		reasons = append(reasons, ReasonName)
 	}
@@ -277,19 +222,9 @@ func findMatchReasons(nameScore, addrScore, geoScore, locScore float64) []string
 	if locScore >= 0.7 {
 		reasons = append(reasons, ReasonLocation)
 	}
-
 	return reasons
 }
 
-// calculateConfidenceScore — итоговая уверенность алгоритма.
-// В отличие от MatchScore (чистое сходство строк/координат), здесь учитывается:
-//   - sizeFactor: чем больше отелей в группе подтвердили совпадение, тем выше уверенность
-//   - providerFactor: чем больше РАЗНЫХ поставщиков подтвердили этот отель, тем выше уверенность
-//     (если 5 записей, но все от одного поставщика — это слабее, чем 3 записи от 3 разных)
-//
-// Для одиночных групп (отель не нашёл пару) уверенность снижена, т.к. это
-// не подтверждённый дубликат, а скорее "нет повторов" — что само по себе не ошибка,
-// но и не "уверенное совпадение".
 func calculateConfidenceScore(matchScore float64, hotelsCount, providersCount int) float64 {
 	if hotelsCount <= 1 {
 		return 1.0
@@ -319,13 +254,8 @@ func calculateConfidenceScore(matchScore float64, hotelsCount, providersCount in
 }
 
 
-// НОВЫЕ ФУНКЦИИ ДЛЯ МАТРИЦЫ СХОДСТВА И ВКЛАДА ПРИЗНАКОВ
+// НОВЫЕ ФУНКЦИИ
 
-
-// calculatePairwiseMatrix - вычисляет попарное сходство для всех пар в группе
-// Возвращает слайс структур PairwiseSimilarity, где каждая структура содержит:
-//   - IndexA, IndexB: индексы отелей в группе
-//   - Similarity: итоговая оценка сходства между ними
 func calculatePairwiseMatrix(hotels []domain.Hotel, cfg domain.Config) []domain.PairwiseSimilarity {
 	if len(hotels) < 2 {
 		return nil
@@ -345,12 +275,6 @@ func calculatePairwiseMatrix(hotels []domain.Hotel, cfg domain.Config) []domain.
 	return matrix
 }
 
-// calculateFeatureContribution - вычисляет средний вклад каждого признака для всех пар в группе
-// Возвращает FeatureContribution со средними значениями для:
-//   - Name: средняя оценка по названиям
-//   - Address: средняя оценка по адресам
-//   - Geo: средняя оценка по координатам
-//   - City: средняя оценка по городу/стране
 func calculateFeatureContribution(hotels []domain.Hotel, cfg domain.Config) domain.FeatureContribution {
 	if len(hotels) < 2 {
 		return domain.FeatureContribution{}
@@ -365,22 +289,18 @@ func calculateFeatureContribution(hotels []domain.Hotel, cfg domain.Config) doma
 		for j := i + 1; j < len(hotels); j++ {
 			var nameScore, addrScore, geoScore, locScore float64
 
-			// Вычисляем оценки по каждому признаку (аналогично calculateMatchScore, но без взвешивания)
 			if alg == "universal" {
-				// Для универсального алгоритма используем лучший алгоритм для каждого поля
 				nameScore = algorithms.CompareNamesWithAlgorithm(hotels[i].Name, hotels[j].Name, "jaro-winkler")
 				addrScore = algorithms.CompareAddressesWithAlgorithm(hotels[i].Address, hotels[j].Address, "levenshtein")
 				geoScore = algorithms.CompareCoordinates(hotels[i].Latitude, hotels[i].Longitude, hotels[j].Latitude, hotels[j].Longitude)
 				locScore = algorithms.CompareLocationWithAlgorithm(hotels[i].City, hotels[i].Country, hotels[j].City, hotels[j].Country, "jaro")
 			} else {
-				// Для обычного алгоритма — один алгоритм для всех полей
 				nameScore = algorithms.CompareNamesWithAlgorithm(hotels[i].Name, hotels[j].Name, alg)
 				addrScore = algorithms.CompareAddressesWithAlgorithm(hotels[i].Address, hotels[j].Address, alg)
 				geoScore = algorithms.CompareCoordinates(hotels[i].Latitude, hotels[i].Longitude, hotels[j].Latitude, hotels[j].Longitude)
 				locScore = algorithms.CompareLocationWithAlgorithm(hotels[i].City, hotels[i].Country, hotels[j].City, hotels[j].Country, alg)
 			}
 
-			// Суммируем оценки
 			totalName += nameScore
 			totalAddr += addrScore
 			totalGeo += geoScore
@@ -393,7 +313,6 @@ func calculateFeatureContribution(hotels []domain.Hotel, cfg domain.Config) doma
 		return domain.FeatureContribution{}
 	}
 
-	// Возвращаем средние значения
 	return domain.FeatureContribution{
 		Name:    totalName / float64(count),
 		Address: totalAddr / float64(count),

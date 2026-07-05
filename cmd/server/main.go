@@ -31,8 +31,7 @@ func main() {
 	// matcher := usecase.NewMatcher(hotelRepo)
 
 	// Вариант 2: Универсальный матчер 
-	matcher := usecase.NewUniversalMatcher(hotelRepo)
-
+	matcher := usecase.NewMatcher(hotelRepo)
 
 
 	//Создаём HTTP-обработчик с матчером и логгером
