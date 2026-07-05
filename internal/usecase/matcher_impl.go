@@ -74,7 +74,7 @@ func (m *matcherImpl) Match(ctx context.Context, hotels []domain.Hotel, cfg doma
 		matchScore, reasons := calculateGroupConfidence(hotelsInGroup, cfg)
 		score := calculateConfidenceScore(matchScore, len(hotelsInGroup), len(providersInGroup))
 
-
+		
 		// НОВОЕ: вычисляем pairwiseMatrix и featureContribution для группы
 		
 		var pairwiseMatrix []domain.PairwiseSimilarity
@@ -318,7 +318,9 @@ func calculateConfidenceScore(matchScore float64, hotelsCount, providersCount in
 	return confidence
 }
 
+
 // НОВЫЕ ФУНКЦИИ ДЛЯ МАТРИЦЫ СХОДСТВА И ВКЛАДА ПРИЗНАКОВ
+
 
 // calculatePairwiseMatrix - вычисляет попарное сходство для всех пар в группе
 // Возвращает слайс структур PairwiseSimilarity, где каждая структура содержит:
@@ -365,17 +367,20 @@ func calculateFeatureContribution(hotels []domain.Hotel, cfg domain.Config) doma
 
 			// Вычисляем оценки по каждому признаку (аналогично calculateMatchScore, но без взвешивания)
 			if alg == "universal" {
+				// Для универсального алгоритма используем лучший алгоритм для каждого поля
 				nameScore = algorithms.CompareNamesWithAlgorithm(hotels[i].Name, hotels[j].Name, "jaro-winkler")
 				addrScore = algorithms.CompareAddressesWithAlgorithm(hotels[i].Address, hotels[j].Address, "levenshtein")
 				geoScore = algorithms.CompareCoordinates(hotels[i].Latitude, hotels[i].Longitude, hotels[j].Latitude, hotels[j].Longitude)
 				locScore = algorithms.CompareLocationWithAlgorithm(hotels[i].City, hotels[i].Country, hotels[j].City, hotels[j].Country, "jaro")
 			} else {
+				// Для обычного алгоритма — один алгоритм для всех полей
 				nameScore = algorithms.CompareNamesWithAlgorithm(hotels[i].Name, hotels[j].Name, alg)
 				addrScore = algorithms.CompareAddressesWithAlgorithm(hotels[i].Address, hotels[j].Address, alg)
 				geoScore = algorithms.CompareCoordinates(hotels[i].Latitude, hotels[i].Longitude, hotels[j].Latitude, hotels[j].Longitude)
 				locScore = algorithms.CompareLocationWithAlgorithm(hotels[i].City, hotels[i].Country, hotels[j].City, hotels[j].Country, alg)
 			}
 
+			// Суммируем оценки
 			totalName += nameScore
 			totalAddr += addrScore
 			totalGeo += geoScore
@@ -388,6 +393,7 @@ func calculateFeatureContribution(hotels []domain.Hotel, cfg domain.Config) doma
 		return domain.FeatureContribution{}
 	}
 
+	// Возвращаем средние значения
 	return domain.FeatureContribution{
 		Name:    totalName / float64(count),
 		Address: totalAddr / float64(count),
