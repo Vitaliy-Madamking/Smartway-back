@@ -1,0 +1,75 @@
+@use '../../../shared/styles/mixins' as *;
+
+.summary {
+  @include responsive-grid(2, 20px);
+  grid-template-columns: minmax(0, 1fr) 385px;
+}
+
+.chartMetrics {
+  @include flex-column(20px);
+}
+
+.metricsGrid {
+  @include responsive-grid(2, 20px);
+}
+
+.sideMetrics {
+  display: grid;
+  grid-template-rows: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.item {
+  padding: 20px;
+  @include flex-column();
+  justify-content: space-between;
+  flex: 1;
+}
+
+.value {
+  font-weight: 800;
+}
+
+.card {
+  @include flex-column(8px);
+  padding: 20px;
+}
+
+.chart {
+  @include centered-flex();
+}
+
+@media (max-width: 1100px) {
+  .summary {
+    grid-template-columns: 1fr;
+  }
+
+  .sideMetrics {
+    @include responsive-grid(3, 16px);
+    grid-template-rows: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .metricsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .sideMetrics {
+    @include responsive-grid(2, 16px);
+  }
+}
+
+@media (max-width: 520px) {
+  .sideMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .item {
+    padding: 16px;
+  }
+
+  .value {
+    font-size: 2rem;
+  }
+}

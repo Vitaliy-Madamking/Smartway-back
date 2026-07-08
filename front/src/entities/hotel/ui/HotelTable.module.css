@@ -1,0 +1,21 @@
+.table {
+  min-width: 860px;
+  table-layout: fixed;
+}
+
+.nameCell {
+  width: 32%;
+}
+
+.name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font-weight: 700;
+}
+
+/*# sourceMappingURL=HotelTable.module.css.map */

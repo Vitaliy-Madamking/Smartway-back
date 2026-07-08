@@ -1,0 +1,18 @@
+@use '../../../shared/styles/variables' as *;
+@use '../../../shared/styles/mixins' as *;
+
+.backIconContainer {
+  @include flex-row(center, flex-start, 12px);
+
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: $text-secondary;
+  cursor: pointer;
+  font: inherit;
+}
+
+.backIcon {
+  font-size: 1rem;
+}

@@ -1,0 +1,1 @@
+export { getPluralHotel } from './getPluralHotel';

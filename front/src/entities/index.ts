@@ -1,0 +1,23 @@
+export { getPluralHotel, HotelTable, type HotelRecord } from './hotel';
+export {
+    createMatchingJob,
+    getMatchReasonLabel,
+    isUploadRequestError,
+    MATCH_REQUEST_QUERY_KEY,
+    MATCH_RESULT_QUERY_KEY,
+    MATCHING_ALGORITHMS,
+    useMatchResult,
+    type GroupSizeStatsDto,
+    type MatchGroup,
+    type MatchPaginationModel,
+    type MatchResult,
+    type MatchingAlgorithm,
+    type MatchingRequest,
+    type MetricsModel,
+    type PairwiseMatrixItem,
+    type ReasonContribution,
+    type UploadErrorCode,
+    type UploadHotelDto,
+    type UploadRequestError,
+    type UploadResponseDto,
+} from './match-result';

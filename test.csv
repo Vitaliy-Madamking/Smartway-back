@@ -1,0 +1,4 @@
+provider,provider_hotel_id,name,address,city,country,country_code,latitude,longitude,stars
+expedia,123,Test Hotel 1,123 Main St,New York,United States,US,40.7128,-74.0060,3
+tripcom,456,Test Hotel 2,456 Oak Ave,Los Angeles,United States,US,34.0522,-118.2437,4
+paximum,789,Test Hotel 3,789 Pine Rd,Chicago,United States,US,41.8781,-87.6298,2

@@ -1,0 +1,9 @@
+@use '../../styles/mixins' as *;
+
+.header {
+  @include flex-row(stretch, space-between, 16px);
+}
+
+.value {
+  font-weight: 700;
+}

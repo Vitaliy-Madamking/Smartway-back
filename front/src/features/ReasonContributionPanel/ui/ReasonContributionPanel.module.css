@@ -1,0 +1,23 @@
+.diagnosticPanel {
+  min-width: 0;
+}
+
+.diagnosticTitle {
+  margin-bottom: 24px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.featureList {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+@media (max-width: 680px) {
+  .diagnosticTitle {
+    text-align: left;
+  }
+}
+
+/*# sourceMappingURL=ReasonContributionPanel.module.css.map */

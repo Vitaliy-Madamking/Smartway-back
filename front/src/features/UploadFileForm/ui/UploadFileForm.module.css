@@ -1,0 +1,22 @@
+.root {
+  padding: 24px;
+}
+
+.form {
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.helperText {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+/*# sourceMappingURL=UploadFileForm.module.css.map */

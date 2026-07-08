@@ -1,0 +1,56 @@
+.diagnosticPanel {
+  min-width: 0;
+}
+
+.diagnosticTitle {
+  margin-bottom: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.matrixWrap {
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.matrixGrid {
+  display: grid;
+  min-width: min-content;
+  gap: 8px;
+  align-items: center;
+}
+
+.matrixAxisLabel {
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.matrixCell {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 8px;
+  color: #111827;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.matrixCellContrast {
+  color: #ffffff;
+}
+
+.matrixCellEmpty {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+@media (max-width: 680px) {
+  .diagnosticTitle {
+    text-align: left;
+  }
+}
+
+/*# sourceMappingURL=PairwiseMatrix.module.css.map */

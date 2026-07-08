@@ -1,0 +1,27 @@
+@use '../../shared/styles/variables' as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: $background;
+  color: $text-primary;
+  font-family: Inter, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}

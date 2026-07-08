@@ -1,0 +1,42 @@
+@use '../../../shared/styles/variables' as *;
+@use '../../../shared/styles/mixins' as *;
+
+.header {
+    @include flex-row(flex-start, space-between, 16px);
+}
+
+.metrics,
+.reasons {
+    padding: 20px;
+}
+
+.metrics {
+    @include responsive-grid(2, 24px);
+}
+
+.reasonList {
+    @include flex-row(center, flex-start, 8px, wrap);
+
+    margin-top: 16px;
+}
+
+.diagnostics {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.95fr) minmax(280px, 1.05fr);
+    gap: 24px;
+    padding: 20px;
+}
+
+@media (max-width: 680px) {
+    .header {
+        flex-direction: column;
+    }
+
+    .metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .diagnostics {
+        grid-template-columns: 1fr;
+    }
+}

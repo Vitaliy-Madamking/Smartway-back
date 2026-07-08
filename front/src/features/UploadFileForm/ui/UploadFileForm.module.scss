@@ -1,0 +1,18 @@
+@use '../../../shared/styles/variables' as *;
+@use '../../../shared/styles/mixins' as *;
+
+.root {
+  padding: 24px;
+}
+
+.form {
+  width: 100%;
+}
+
+.actions {
+  @include flex-row(center, flex-start, 16px, wrap);
+}
+
+.helperText {
+  @include field-helper-text;
+}

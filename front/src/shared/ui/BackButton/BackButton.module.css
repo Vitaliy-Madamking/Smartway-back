@@ -1,0 +1,20 @@
+.backIconContainer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 12px;
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font: inherit;
+}
+
+.backIcon {
+  font-size: 1rem;
+}
+
+/*# sourceMappingURL=BackButton.module.css.map */

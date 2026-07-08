@@ -1,0 +1,13 @@
+.header {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 16px;
+}
+
+.value {
+  font-weight: 700;
+}
+
+/*# sourceMappingURL=ScoreBar.module.css.map */

@@ -1,0 +1,22 @@
+@use '../../../shared/styles/variables' as *;
+@use '../../../shared/styles/mixins' as *;
+
+.diagnosticPanel {
+  min-width: 0;
+}
+
+.diagnosticTitle {
+  margin-bottom: 24px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.featureList {
+  @include flex-column(24px);
+}
+
+@media (max-width: 680px) {
+  .diagnosticTitle {
+    text-align: left;
+  }
+}

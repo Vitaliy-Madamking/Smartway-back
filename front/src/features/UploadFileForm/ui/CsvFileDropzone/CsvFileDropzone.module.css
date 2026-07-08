@@ -1,0 +1,76 @@
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 220px;
+  padding: 32px;
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.dropzone:hover {
+  border-color: #6c0014;
+  background: rgba(244, 230, 229, 0.8);
+}
+
+.dropzoneHeader {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+
+.uploadIcon {
+  flex: 0 0 auto;
+  font-size: 42px;
+}
+
+.dropzoneActive,
+.dropzoneActive:hover {
+  border-color: #6c0014;
+  background: rgba(244, 230, 229, 0.8);
+}
+
+.dropzoneError,
+.dropzoneError:hover {
+  border-color: #d32f2f;
+  background: #fff5f5;
+}
+
+.dropzoneTitle {
+  color: #111827;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.dropzoneHint,
+.fileName {
+  color: #64748b;
+}
+
+.fileMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 16px;
+  margin-top: auto;
+}
+
+.fileName {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.helperText {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+/*# sourceMappingURL=CsvFileDropzone.module.css.map */

@@ -1,0 +1,7 @@
+@use '../../shared/styles/mixins' as *;
+
+.fallback {
+  @include centered-grid;
+
+  min-height: 320px;
+}
